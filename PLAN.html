@@ -1,3 +1,4 @@
+<meta charset="utf-8">
 <title>Pattern Sweep — Dev Plan</title>
 <style>
   :root {
@@ -65,6 +66,57 @@
   <p class="dek">Two demos exist. This plan maps the rest of the pattern space of the same
   Gray-Scott solver, and separates what the parameters control from what the seed controls.</p>
 </header>
+
+<section class="block">
+  <h2>Status — executed 2026-08-13</h2>
+  <div class="card note">
+    <p><b>All three stages have run.</b> This plan is left exactly as it was written, so the
+    predictions can be compared against the outcomes. The outcomes are below; the full
+    write-up with figures is the addendum in <code>documentation.html</code>, and the live
+    project state is <code>HANDOFF.md</code>.</p>
+    <table>
+      <tr><th>Stage</th><th>Result</th><th>Predicted</th><th>Actual</th></tr>
+      <tr>
+        <td>Load-bearing check</td>
+        <td class="tag">PASS</td>
+        <td>floating-point tolerance</td>
+        <td>max |Δu| = 1.4e-15 over 200 steps</td>
+      </tr>
+      <tr>
+        <td>Stage 1 sheet</td>
+        <td class="tag">PASS</td>
+        <td>20 min, 3 runs</td>
+        <td>21.3 min, <b>1 run</b> — calibration passed first time</td>
+      </tr>
+      <tr>
+        <td>Stage 2 seeds</td>
+        <td class="tag">FAIL — null result</td>
+        <td>~15 min, 2 runs</td>
+        <td>25.0 min, 1 run, 0 gliders in 154 tiles</td>
+      </tr>
+      <tr>
+        <td>Stage 3 ratios</td>
+        <td class="tag">RAN</td>
+        <td>20 min each, optional</td>
+        <td>21 min each; ran first, to write stage 2 during the compute</td>
+      </tr>
+      <tr>
+        <td><b>Total compute</b></td><td></td>
+        <td>1.5 to 3 hours</td><td class="tag"><b>88 minutes</b></td>
+      </tr>
+    </table>
+    <p>Three predictions in this document held. The <code>scipy</code> benchmark was accurate
+    to 3&nbsp;ms/step. The diffusion ratio deformed the map without adding a pattern class.
+    And the largest cost lever named at the end of the cost section — the calibration check —
+    paid for itself: it passed on the first run, so stage 1 cost one run instead of the three
+    budgeted.</p>
+    <p>Two things this plan did not anticipate. The motion metric splits into <b>three</b>
+    bands, not two, and both calibration tiles land between the first two — read the printed
+    number, not the static/dynamic colour. And <code>run_stage2</code> keeps only the last row
+    of its <code>v.sum()</code> track, which is why the four near-miss tiles in stage 2 cannot
+    be re-judged without another 25-minute run.</p>
+  </div>
+</section>
 
 <section class="block">
   <h2>Goal</h2>
@@ -166,6 +218,10 @@
     <p><b>Unverified.</b> Reported u-skate coordinates are near <code>f ≈ 0.062,
     k ≈ 0.0609</code> for ratio-2 codes. I have not run this here. Treat it as a starting point
     to check in stage 2, not as a fact.</p>
+    <p><b>Resolved 2026-08-13 — not reproduced.</b> Stage 2 swept <code>k</code> from 0.0605 to
+    0.0635 at <code>f = 0.062</code>, against all eleven designed seeds. Every combination
+    either grew to fill the domain or sat perfectly still. No moving localised structure
+    appeared at or near those coordinates. The flag stands, now with evidence behind it.</p>
   </div>
 
   <h3>The one legitimate seed knob</h3>
@@ -307,6 +363,14 @@
   Do not expect new pattern classes.</p>
   <p>Keep <code>D_u = 1.0</code> in both. Keep the ratio below 1.</p>
   <p>Run this only if stage 1 leaves an interesting question. It is a nice-to-have.</p>
+  <div class="card note">
+    <p><b>Ran 2026-08-13, before stage 2.</b> Stage 3 needed two lines of code — <code>D_u</code>
+    and <code>D_v</code> were already arguments — so it ran first and occupied the CPU while
+    stage 2 was written. Result: live tiles 142 / 104 / 68 at ratios 0.3 / 0.5 / 0.7, and
+    soliton-like tiles 3 / 13 / 6. Feature size changes, the map deforms, <b>no new pattern
+    class appears</b>. At 0.7 the coral and mitosis coordinates both die. The bistable window
+    is widest at <b>0.5</b>, which settled where stage 2 should hunt.</p>
+  </div>
 </section>
 
 <section class="block">
@@ -454,7 +518,8 @@ python sweep.py --selftest                # calibration check only</code></pre>
     may not settle them. If the motion metric looks high everywhere in one corner, raise the step
     count there before you call it dynamic.</li>
     <li><b>The u-skate coordinates are unverified in this code.</b> Marked above. Confirm or
-    reject in stage 2 and record the result.</li>
+    reject in stage 2 and record the result. <b>Outcome: rejected</b> — swept finely and not
+    reproduced.</li>
     <li><b>Clipping.</b> <code>step</code> clips <code>u</code> and <code>v</code> to
     <code>[0,1]</code> at <code>demo.py:67-68</code>. Near the stability ceiling that clip can
     hide a divergence instead of showing it. Assert on the pre-clip range in the sweep, so an
