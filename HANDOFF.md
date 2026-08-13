@@ -17,9 +17,15 @@ There is no repo-level `CLAUDE.md` — standing conventions come from the global
   space to find stripes, spots, worms, waves and gliders. Includes measured
   benchmarks and a cost section. **No code was written for it.**
 - `demo.py` is **unmodified** and must stay that way (see Next task).
+- **GitHub Actions added, commit `e57048e`** (merged PR #1, created by
+  `/install-github-app`, not by hand): `.github/workflows/claude.yml` (PR
+  assistant) and `.github/workflows/claude-code-review.yml`. Opening a PR now
+  triggers an automated Claude review. Simon does not normally use PRs — this
+  arrived with the app install.
 - Everything committed and pushed to `main`
   (https://github.com/az9713/reaction-diffusion-simulation.git). Working tree
-  clean.
+  clean apart from untracked `.ignore/`, which is local scratch — leave it
+  untracked.
 
 ## Next task
 
