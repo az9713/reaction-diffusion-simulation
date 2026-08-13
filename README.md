@@ -3,7 +3,8 @@
 Two 28-second audiovisual demos grown from the **same two-line chemical equation** —
 `coral` (labyrinthine growth) and `mitosis` (dividing cells). Every pixel and every
 audio sample is generated from code. No illustration, no sample libraries, no GPU:
-just numpy, the Python standard library, and ffmpeg.
+just numpy, the Python standard library, and ffmpeg. A second script maps the rest of
+the same equation's pattern space — see [The pattern sweep](#the-pattern-sweep).
 
 | coral | mitosis |
 |:--:|:--:|
@@ -26,8 +27,20 @@ python demo.py all          # renders coral.mp4 and mitosis.mp4 (~11 min total)
 python demo.py b --preview  # fast gate: 4 PNG stills, no encode — catches dead sims
 ```
 
+The parameter sweep is a second script. It never modifies `demo.py` — it carries its
+own batched stepper and imports `demo` only as the reference its selftest checks against:
+
+```bash
+python sweep.py --selftest              # both checks, seconds
+python sweep.py --stage1                # 12×12 f-k contact sheet (~21 min)
+python sweep.py --stage1 --ratio 0.3    # same sheet at another diffusion ratio
+python sweep.py --stage2                # designed seeds + glider detector (~25 min)
+```
+
 Requires Python 3.10+, `numpy`, and an `ffmpeg` binary on `PATH`.
-Built and verified on Python 3.13.5 / numpy 2.2.6 / ffmpeg 7.1.1, Windows 11.
+`sweep.py` also needs `scipy` and `Pillow`.
+Built and verified on Python 3.13.5 / numpy 2.2.6 / scipy 1.16.0 / Pillow 11.0.0 /
+ffmpeg 7.1.1, Windows 11.
 
 ## The math
 
@@ -204,11 +217,68 @@ grid — so the last ~19 seconds leans mostly on the drone. A rolling-window thr
 instead of one global 70th-percentile cutoff would fix it, at the cost of a ~6-minute
 re-render.
 
+## The pattern sweep
+
+`coral` and `mitosis` are two points in a space. [`sweep.py`](sweep.py) maps the rest
+of it — every stationary and moving pattern the same solver can produce.
+
+![f-k contact sheet](sweep_preview.jpg)
+
+*146 tiles. `f` from 0.010 to 0.090, `k` from 0.045 to 0.070, 8000 steps each, every
+tile from the identical seed. Bottom row: the two published demo coordinates, run as
+calibration.*
+
+**Three axes, not four.** Rescale space and one diffusion constant disappears, so only
+the ratio $D_v/D_u$ matters — $D_u$ alone is a zoom control. The 9-point stencil's most
+negative eigenvalue is $-1.6$, so explicit Euler is stable only while $D \cdot dt < 1.25$;
+`demo.py` already sits near that ceiling at $D_u = 1.0$.
+
+**The harness is checked before the science.** A rewritten solver that is subtly wrong
+produces a sheet full of plausible, meaningless pictures. So `--selftest` runs one tile
+of the batched stepper against `demo.step` for 200 steps (max difference `1.4e-15`) and
+rolls a blob across the grid's wrap edge to verify the centroid tracker (`1.8e-15` px).
+The two demo coordinates then appear on the sheet as calibration tiles — a branching maze
+and a field of dividing spots, both reproduced.
+
+**Speed.** 144 tiles stack into one `(144, H, W)` array and step together. Replacing the
+demo's eight `np.roll` calls with one `scipy.ndimage.convolve(Z, K, mode="wrap")` — same
+arithmetic to `2.2e-16` — is 5× faster, which is the difference between a 103-minute run
+and a 21-minute one.
+
+**What the map shows.** A restless low-`f` corner of waves, worms and self-replicating
+spots; a diagonal band of mazes and stripes; a uniform region above it; 42 dead tiles
+below. Thirteen tiles at high `f` are **bistable** — they hold one small structure and
+leave the rest of the grid blank forever, which is the precondition for a glider.
+
+| $D_v/D_u$ | live tiles | dead | soliton-like | features |
+|---|---|---|---|---|
+| 0.3 | 142 | 4 | 3 | fine |
+| **0.5** (the demos) | 104 | 42 | **13** | reference |
+| 0.7 | 68 | 78 | 6 | coarse |
+
+The ratio throttles the whole map, and at 0.7 the coral and mitosis coordinates both die —
+the Turing condition stating its terms. No new pattern class appears at either ratio.
+
+**Stage 2 is a null result: zero gliders in 154 runs.** Eleven designed seeds against
+fourteen `(f, k)` pairs. Symmetric seeds — one blob, and blob pairs at every gap from 2 to
+30 px — produced *exactly zero* centroid travel, which is the physics answering: a
+symmetric seed has no direction to travel in. Only the asymmetric blob moved, 6–10 px over
+its final 2000 steps, and its `v.sum()` is still rising there — so those are growing
+filaments, not conserved gliders. The published u-skate coordinates `f≈0.062, k≈0.0609`
+went in flagged unverified and came out **tested and not reproduced** in this
+parameterisation.
+
+Full write-up with all figures: [`documentation.html`](documentation.html). Method and
+acceptance criteria: [`PLAN.html`](PLAN.html).
+
 ## Files
 
 | file | what it is |
 |---|---|
 | [`demo.py`](demo.py) | the entire build — sim, palette, synthesis, render pipeline |
+| [`sweep.py`](sweep.py) | the parameter sweep — batched stepper, contact sheets, glider detector |
+| [`PLAN.html`](PLAN.html) | the sweep's spec: three-axis rulebook, per-stage acceptance checks, costs |
+| [`HANDOFF.md`](HANDOFF.md) | resume point — current state and the next task |
 | [`coral.mp4`](coral.mp4) · [`mitosis.mp4`](mitosis.mp4) | full-quality renders, 960×540, h264 + aac |
 | `*_preview.gif` | short silent excerpts for this page |
 | `*_spectrogram.png` | full-track audio spectrograms |
