@@ -22,14 +22,19 @@ There is no repo-level `CLAUDE.md` — standing conventions come from the global
   assistant) and `.github/workflows/claude-code-review.yml`. Opening a PR now
   triggers an automated Claude review. Simon does not normally use PRs — this
   arrived with the app install.
-- **New this session, uncommitted:** `sweep.py` — stage 1 of `PLAN.html`, complete
-  and run. `--selftest` matches `demo.step` to 1.4e-15 over 200 steps.
-  `--stage1` ran 146 tiles at 192 px for 8000 steps in **21.3 min** (146 ms/step,
-  as predicted). Both calibration tiles pass. Outputs `sweep_fk.png`,
-  `sweep_fk.txt`, `sweep_fk_v.npy` — all gitignored, all regenerable.
+- **Shipped, commit `df5675d`:** `sweep.py` — all three stages of `PLAN.html`,
+  written and run. `--selftest` has two checks, both passing: the batched
+  stepper against `demo.step` (1.4e-15 over 200 steps) and the torus centroid
+  across the wrap edge (1.8e-15 px/step). Outputs are gitignored and
+  regenerable: `sweep_fk_r{030,050,070}.{png,txt,_v.npy}` and
+  `sweep_seeds_r050.*`.
   Rendering uses PIL, not the ffmpeg path `PLAN.html` suggested: PIL is already
   installed, keeps exact pixels, and avoids the ffmpeg `drawtext` font-path bug
   on this machine.
+- **Stage 1 PASSES calibration**, stage 3 ran at ratios 0.3 and 0.7, **stage 2
+  returns a null result** — see "Facts already established" below.
+- The GitHub About box was set this session via `gh repo edit`. `README.md` is
+  unchanged and does **not** mention `sweep.py` — see "Next task".
 - Everything else committed and pushed to `main`
   (https://github.com/az9713/reaction-diffusion-simulation.git). Working tree
   clean apart from untracked `.ignore/`, which is local scratch — leave it
@@ -37,35 +42,25 @@ There is no repo-level `CLAUDE.md` — standing conventions come from the global
 
 ## Next task
 
-**Stage 2 of `PLAN.html` — designed seeds inside the bistable window.** Stage 1
-is finished and read. Add `--stage2` to `sweep.py`. Reuse `step_batch`,
-`make_buffers` and the pre-clip check; write a new seed builder and a glider
-detector.
+`PLAN.html` is fully executed. Pick one; ask Simon if unsure.
 
-Stage 1 found a wide bistable window at high `f`. Use these `(f, k)` pairs —
-each already holds a single localised structure that does not fill the domain:
+**A. Chase the near-miss glider (the open scientific question).** Stage 2 found
+no glider, but four asymmetric-seed tiles moved 6–10 px in the final 2000 steps
+while still growing, so they failed the flat-`v.sum()` test rather than the
+motion test. The best is `asym, f=0.0682, k=0.0632`, which formed a clean
+travelling chevron. To settle it, `run_stage2` must **return the `vs`, `px`, `py`
+tracks**, not just their last row — right now the trend is thrown away and the
+verdict cannot be re-judged without a 25-minute re-run. Then run those four
+pairs alone for 40 000 steps and plot `v.sum()` against time. A structure whose
+mass keeps rising is a growing worm, not a glider.
 
-| f | k | what stage 1 shows | mean \|Δv\| |
-|---|---|---|---|
-| 0.0609 | 0.0632 | one cross-shaped ring | 1.5e-05 |
-| 0.0682 | 0.0632 | one annulus | 1.4e-06 |
-| 0.0755 | 0.0609 | one rounded-square ring | 6.6e-06 |
-| 0.0609 | 0.0655 | 4 isolated static spots | 1.8e-07 |
-| 0.0682 | 0.0655 | 4 isolated static spots | 1.5e-07 |
-| 0.0755 | 0.0632 | 4 isolated static spots | 1.9e-07 |
+**B. Update `README.md` for the sweep.** It still describes only `demo.py`. The
+Files table omits `sweep.py`, `PLAN.html` and `HANDOFF.md`, and Quick start
+shows no `sweep.py` commands. Simon declined a README edit once this session,
+but that was about the GitHub About box specifically, not about this.
 
-Add the reported u-skate pair `f=0.062, k=0.0609` as a candidate. Stage 1 does
-not cover it: the nearest tile `f=0.0609, k=0.0609` fills the domain with spots,
-so the bistable boundary runs between `k=0.0609` and `k=0.0632` there. Sample
-`k` finely across that gap.
-
-Acceptance: PASS if one `(f, k, seed)` gives flat `v.sum()` and a non-zero
-centroid speed held for 2000 steps. Unwrap the centroid before measuring speed —
-the grid wraps. A null result is a real result; report it.
-
-Stage 3 (diffusion-ratio sheets) needs no new code beyond a `--ratio` flag —
-`D_u` and `D_v` are already arguments of `run_stage1`. Run it only if a question
-remains.
+**C. Stop.** The plan is done and the results are recorded. This is a legitimate
+choice.
 
 If the user asks for something else, that takes precedence.
 
@@ -104,6 +99,25 @@ If the user asks for something else, that takes precedence.
   colour.
 - The demo MP4s run **longer** than the sheet: coral 25 200 steps, mitosis
   16 800. The sheet at 8000 steps shows an earlier moment of the same pattern.
+- **Stage 3, three ratios.** `D_v/D_u` throttles the whole map. At 0.3: 142 of
+  146 tiles live, 3 soliton-like, features fine. At 0.5: 104 live, 13
+  soliton-like. At 0.7: 68 live, 6 soliton-like, features coarse, and **the
+  coral and mitosis coordinates both die** — the Turing condition needs `D_v`
+  well below `D_u`. No new pattern class at either ratio, as `PLAN.html`
+  predicted. **Ratio 0.5 has the widest bistable window of the three**, so it is
+  the right place to hunt gliders. Do not re-run stage 3.
+- **Stage 2 is a null result: 0 gliders.** 154 tiles (14 `(f,k)` pairs × 11
+  seeds), 192 px, 10 000 steps, 25.0 min. Verdicts: 28 soliton, 51 grew, 75
+  unsettled, 0 dead, 0 unstable. Symmetric seeds (single, and all 8 blob pairs)
+  never move — as expected, a symmetric seed has no direction to travel in.
+  **Only the `asym` seed produces motion**, at `f≈0.061–0.068, k≈0.0631–0.0632`:
+  6–10 px of centroid travel over the final 2000 steps, but `v.sum()` is still
+  rising, so these are growing filaments, not conserved gliders. `asym,
+  f=0.0682, k=0.0632` grew a clean chevron and is the best candidate.
+- The reported u-skate pair `f=0.062, k=0.0609` produced **nothing localised**.
+  Every seed there either grew to fill the domain or sat still. Across the fine
+  `k` sweep 0.0605–0.0635 at `f=0.062`, no combination gave a moving soliton.
+  Treat the published coordinates as **not reproduced in this parameterisation**.
 
 ## Session-transient scratch (regenerate; durable record is `PLAN.html`)
 
