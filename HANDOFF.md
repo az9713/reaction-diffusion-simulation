@@ -33,8 +33,11 @@ There is no repo-level `CLAUDE.md` — standing conventions come from the global
   on this machine.
 - **Stage 1 PASSES calibration**, stage 3 ran at ratios 0.3 and 0.7, **stage 2
   returns a null result** — see "Facts already established" below.
-- The GitHub About box was set this session via `gh repo edit`. `README.md` is
-  unchanged and does **not** mention `sweep.py` — see "Next task".
+- The GitHub About box was set this session via `gh repo edit`. `README.md` and
+  `documentation.html` both now cover the sweep (commits `719c440`, `0025b38`).
+  `documentation.html` also gained the `<meta charset="utf-8">` it had always
+  lacked — without it every em dash renders as mojibake over HTTP.
+  `sweep_preview.jpg` is the only sweep image tracked in git.
 - Everything else committed and pushed to `main`
   (https://github.com/az9713/reaction-diffusion-simulation.git). Working tree
   clean apart from untracked `.ignore/`, which is local scratch — leave it
@@ -54,12 +57,7 @@ verdict cannot be re-judged without a 25-minute re-run. Then run those four
 pairs alone for 40 000 steps and plot `v.sum()` against time. A structure whose
 mass keeps rising is a growing worm, not a glider.
 
-**B. Update `README.md` for the sweep.** It still describes only `demo.py`. The
-Files table omits `sweep.py`, `PLAN.html` and `HANDOFF.md`, and Quick start
-shows no `sweep.py` commands. Simon declined a README edit once this session,
-but that was about the GitHub About box specifically, not about this.
-
-**C. Stop.** The plan is done and the results are recorded. This is a legitimate
+**B. Stop.** The plan is done and the results are recorded. This is a legitimate
 choice.
 
 If the user asks for something else, that takes precedence.
