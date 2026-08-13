@@ -126,6 +126,29 @@ build `(T, S, S)` float32 arrays, time 10–20 steps of each stepper variant wit
 record is the benchmark table in `PLAN.html`; re-run only if the machine or the
 numpy/scipy version changes.
 
+**Figure pipeline for `documentation.html`** — also throwaway, run from `.ignore/`.
+The pattern, if more figures are ever needed:
+
+1. Crop or downscale from `sweep_fk_r050.png` with PIL. Tile geometry is
+   `pad=3, S=192, label=17`, so tile `i` sits at
+   `x = pad + (i % ncol)*(S+pad)`, `y = pad + (i // ncol)*(S+label+pad)`.
+2. Save as JPEG (`quality=88–92`) — 4 figures came to 318 KB total. Full-size
+   PNGs would have added ~5 MB.
+3. Base64-encode, substitute into a `{{PLACEHOLDER}}` in the section HTML, and
+   insert the section immediately before `<footer class="page">`, which occurs
+   exactly once. Back up the file first; assert the anchor count is 1.
+4. Check tag balance by counting `<tag` against `</tag>` on a copy with the
+   base64 payloads stripped (`re.sub(r'(base64,)[A-Za-z0-9+/=]+', ...)`) — that
+   also makes the 5 MB file readable at 29 KB.
+
+The durable record is the committed `documentation.html`. To change a figure,
+edit that file directly rather than rebuilding this pipeline.
+
+**Rendering check.** `file://` URLs are refused by the browser tool. Serve the
+repo with `python -m http.server 8765 --bind 127.0.0.1`, open
+`http://127.0.0.1:8765/documentation.html?v=N` — the query string is needed,
+Chrome serves the stale copy otherwise — then stop the server by its task id.
+
 Watch for the Python closure trap that cost three attempts: an augmented
 assignment (`u += L`, `TMP *= f`) inside a function makes that name local. Use
 `np.add(a, b, out=a)` for module-level buffers.
