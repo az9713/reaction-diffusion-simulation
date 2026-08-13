@@ -1,0 +1,463 @@
+<title>Pattern Sweep — Dev Plan</title>
+<style>
+  :root {
+    --ink-950: #0B0F14;
+    --ink-900: #131A22;
+    --ink-800: #1E2833;
+    --paper-50: #F2EDE1;
+    --paper-0:  #FBF8F0;
+    --paper-300:#DCD2B8;
+    --copper:   #A85A26;
+    --violet:   #7C4FB0;
+    --bg: var(--paper-50);
+    --surface: var(--paper-0);
+    --border: var(--paper-300);
+    --fg: #201A10;
+    --fg-muted: #6B6252;
+    --mono: "JetBrains Mono", "Cascadia Code", ui-monospace, "SF Mono", Consolas, monospace;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: var(--ink-950); --surface: var(--ink-900); --border: var(--ink-800);
+      --fg: #E9E3D6; --fg-muted: #93A0AC; --copper: #E0985A; --violet: #B78EE8;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: var(--ink-950); --surface: var(--ink-900); --border: var(--ink-800);
+    --fg: #E9E3D6; --fg-muted: #93A0AC; --copper: #E0985A; --violet: #B78EE8;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: var(--serif); font-size: 17px; line-height: 1.62;
+    margin: 0; padding: 0 24px 96px;
+  }
+  ::selection { background: var(--copper); color: var(--ink-950); }
+  header.page { max-width: 900px; margin: 0 auto; padding: 64px 0 28px; border-bottom: 1px solid var(--border); }
+  .eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--fg-muted); margin: 0 0 14px; }
+  .eyebrow b { color: var(--copper); font-weight: 600; }
+  h1 { font-family: var(--mono); font-size: clamp(28px,4vw,40px); font-weight: 700; letter-spacing: -.01em; margin: 0 0 12px; text-wrap: balance; }
+  .dek { font-style: italic; color: var(--fg-muted); font-size: 18px; max-width: 62ch; margin: 0; text-wrap: balance; }
+  section.block { max-width: 900px; margin: 0 auto; padding: 44px 0; border-bottom: 1px solid var(--border); }
+  section.block:last-of-type { border-bottom: none; }
+  h2 { font-family: var(--mono); font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--fg-muted); margin: 0 0 20px; display: flex; align-items: baseline; gap: 10px; }
+  h2::before { content: ""; width: 22px; height: 1px; background: var(--border); display: inline-block; }
+  h3 { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--fg); margin: 28px 0 10px; }
+  p, li { margin: 0 0 12px; max-width: 68ch; }
+  ol, ul { padding-left: 22px; }
+  code { font-family: var(--mono); font-size: .88em; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px 22px; margin: 18px 0; }
+  .card > :last-child { margin-bottom: 0; }
+  .flag { border-left: 3px solid var(--copper); }
+  .note { border-left: 3px solid var(--violet); }
+  table { border-collapse: collapse; width: 100%; font-size: 15px; margin: 16px 0; display: block; overflow-x: auto; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-family: var(--mono); font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--fg-muted); font-weight: 600; }
+  td code { background: none; border: none; padding: 0; }
+  .tag { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--copper); }
+  .check { font-family: var(--mono); font-size: 14px; }
+</style>
+
+<header class="page">
+  <p class="eyebrow"><b>Dev plan</b> — reaction-diffusion pattern sweep</p>
+  <h1>Finding stripes, spots, worms and gliders</h1>
+  <p class="dek">Two demos exist. This plan maps the rest of the pattern space of the same
+  Gray-Scott solver, and separates what the parameters control from what the seed controls.</p>
+</header>
+
+<section class="block">
+  <h2>Goal</h2>
+  <p>Produce a single contact-sheet image that shows every stationary and moving pattern this
+  solver can make. Then find the moving localised structures (gliders, u-skate) that a random
+  seed never reaches.</p>
+  <p>Constraint: change one thing at a time. The solver in <code>demo.py</code> stays as it is.</p>
+</section>
+
+<section class="block">
+  <h2>Part 1 — The rulebook: three parameters</h2>
+
+  <p>The Gray-Scott system has four constants: <code>D_u</code>, <code>D_v</code>,
+  <code>f</code>, <code>k</code>. Only three of them change the pattern.</p>
+
+  <p>Rescale space, and one diffusion constant disappears. Divide both diffusion constants by
+  <code>D_u</code>, and the equations keep the same shape. Only the ratio
+  <code>D_v/D_u</code> survives. The absolute size of <code>D</code> changes the zoom only —
+  larger blobs, identical shapes.</p>
+
+  <p>So the rulebook has three axes: <code>f</code>, <code>k</code>, and
+  <code>D_v/D_u</code>.</p>
+
+  <table>
+    <tr><th>Axis</th><th>Current value</th><th>What it changes</th><th>Sweep it?</th></tr>
+    <tr>
+      <td><code>f</code> (feed)</td>
+      <td>0.0545 / 0.0367</td>
+      <td>Pattern class. Main axis.</td>
+      <td class="tag">Yes — stage 1</td>
+    </tr>
+    <tr>
+      <td><code>k</code> (kill)</td>
+      <td>0.062 / 0.0649</td>
+      <td>Pattern class. Main axis.</td>
+      <td class="tag">Yes — stage 1</td>
+    </tr>
+    <tr>
+      <td><code>D_v/D_u</code></td>
+      <td>0.5</td>
+      <td>Deforms the f-k map. Changes feature size.</td>
+      <td class="tag">Optional — stage 3</td>
+    </tr>
+    <tr>
+      <td><code>D_u</code> (absolute)</td>
+      <td>1.0</td>
+      <td>Zoom only. No new patterns.</td>
+      <td class="tag">No</td>
+    </tr>
+  </table>
+
+  <h3>Two hard limits on the diffusion axis</h3>
+  <ul>
+    <li><b>Stability ceiling.</b> The 9-point Laplacian in <code>demo.py:37-42</code> has a most
+    negative eigenvalue of <code>-1.6</code>. Explicit Euler is stable only for
+    <code>D·dt &lt; 1.25</code>. The current <code>D_u = 1.0</code> with <code>dt = 1</code> is
+    close to that ceiling. You cannot raise <code>D_u</code> much. Verified numerically.</li>
+    <li><b>Ordering.</b> <code>D_v</code> must stay below <code>D_u</code>. The activator
+    <code>v</code> must diffuse slower than the inhibitor <code>u</code>, or the Turing
+    instability never starts.</li>
+  </ul>
+
+  <div class="card note">
+    <p><b>Good news: published f and k values transfer directly.</b></p>
+    <p>This file uses exactly Karl Sims' scheme — same Laplacian weights (0.2 orthogonal,
+    0.05 diagonal), <code>D_u=1.0</code>, <code>D_v=0.5</code>, <code>dt=1</code>. Both existing
+    pairs are his published values: coral <code>0.0545 / 0.062</code> and mitosis
+    <code>0.0367 / 0.0649</code>.</p>
+    <p>Against the other common codes that use <code>D_u=0.16, D_v=0.08</code>, the only
+    difference is a spatial zoom of <code>sqrt(1.0/0.16) = 2.5×</code>. The reaction terms are
+    untouched, so the <code>f</code> and <code>k</code> coordinates mean the same thing. Feature
+    size is 2.5× larger here. Plan tile sizes for that.</p>
+  </div>
+</section>
+
+<section class="block">
+  <h2>Part 2 — The seed is not a fourth axis</h2>
+
+  <p>The three parameters set the rulebook. They decide which stable patterns can exist at all.
+  The seed does not change the rulebook. The seed chooses which of those patterns you fall
+  into — which basin of attraction you start inside.</p>
+
+  <p>So varying the seed adds no new region to the map. It reveals extra solutions inside
+  regions the map already contains.</p>
+
+  <h3>Why you cannot sweep it</h3>
+  <p>The seed is a field, not a number. It holds one value per pixel — tens of thousands of
+  dimensions. You cannot grid-search that. You must design specific starting shapes and test
+  them one at a time.</p>
+
+  <h3>Where gliders and u-skate live</h3>
+  <p>They need a <b>bistable</b> region. There two states are stable at once: the blank state
+  (<code>u=1, v=0</code>) and a small travelling blob. A seed in such a region either dies or
+  survives as a compact moving object.</p>
+  <p>Random noise almost never lands in the surviving basin. Noise fills the grid instead. That
+  is why the existing demos show mazes and dividing spots, and no gliders.</p>
+
+  <div class="card flag">
+    <p><b>Unverified.</b> Reported u-skate coordinates are near <code>f ≈ 0.062,
+    k ≈ 0.0609</code> for ratio-2 codes. I have not run this here. Treat it as a starting point
+    to check in stage 2, not as a fact.</p>
+  </div>
+
+  <h3>The one legitimate seed knob</h3>
+  <p>You can build a 1-parameter family by hand: two blobs, separated by a gap. That single
+  distance decides whether the pair annihilates, sits still, or skates away. It is a designed
+  axis, not an intrinsic one — you choose it, the equations do not hand it to you.</p>
+
+  <div class="card">
+    <p><b>Seeding already changes results in this repo.</b> The comment at
+    <code>demo.py:25</code> records it: isolated spots are sub-critical in the mitosis regime and
+    dissolve, so that demo needs at least 36 seeds on a 480×270 grid. Same parameters, different
+    seed, different outcome. That is the rulebook-versus-basin split in one line of existing
+    code.</p>
+  </div>
+</section>
+
+<section class="block">
+  <h2>Stage 1 — The f-k contact sheet</h2>
+
+  <p><b>Deliverable:</b> one PNG. A 12 × 12 grid of tiles. Each tile is one simulation at one
+  <code>(f, k)</code> pair, labelled with its values and a static-or-dynamic marker.</p>
+
+  <h3>Settings</h3>
+  <ul>
+    <li>Fix <code>D_u = 1.0</code>, <code>D_v = 0.5</code>, <code>dt = 1</code>.</li>
+    <li>Sweep <code>f</code> from 0.010 to 0.090. Sweep <code>k</code> from 0.045 to 0.070.</li>
+    <li>Tile size 192 px square for the first run. Do not use 128 px — features are 2.5× larger
+    here, and a 128 px tile shows two spots and tells you nothing. Go to 224 or 256 px only if
+    192 px looks cramped; the run time rises steeply (20 → 50 → 65 min).</li>
+    <li>Use one identical seed in every tile: a central noisy square, about 20 px.</li>
+    <li>Run about 8000 steps. Record the last 50 frames for the motion metric.</li>
+  </ul>
+
+  <h3>Performance — measured, not estimated</h3>
+  <p>Stack all tiles into one <code>(144, H, W)</code> array and step them together in one
+  vectorised loop. The Laplacian and the reaction step both broadcast over the leading axis
+  without change.</p>
+  <p>Then replace the eight <code>np.roll</code> calls with one
+  <code>scipy.ndimage.convolve(Z, K, mode="wrap")</code>. <code>scipy</code> is already installed.
+  I checked the result against <code>demo.laplacian</code>: maximum absolute difference
+  <code>2.2e-16</code> — identical to floating-point noise. The speed gain is 5×.</p>
+
+  <table>
+    <tr><th>Method</th><th>144 tiles, 192 px</th><th>8000 steps</th></tr>
+    <tr><td><code>np.roll</code>, float64</td><td>1891 ms/step (at 224 px)</td><td>252 min</td></tr>
+    <tr><td><code>np.roll</code>, float32</td><td>774 ms/step</td><td>103 min</td></tr>
+    <tr><td><code>scipy.ndimage.convolve</code>, float32</td><td>149 ms/step</td><td class="tag">20 min</td></tr>
+  </table>
+
+  <p>Measured on this machine, 12 cores. Use <code>float32</code>, not <code>float64</code>.
+  It halves the memory traffic and the pattern classes do not need the extra digits.</p>
+
+  <div class="card flag">
+    <p><b>Correction to my earlier estimate.</b> I said batched stepping would take seconds. That
+    was wrong by three orders of magnitude. Stage 1 is a 20-minute job at 192 px, not a
+    5-second one. Plan the wall clock accordingly — see the cost table below.</p>
+  </div>
+
+  <h3>Static against dynamic</h3>
+  <p>A final frame cannot tell a frozen maze from a travelling wave. Use a number instead:
+  mean <code>|Δv|</code> per pixel over the final 50 steps, after the pattern settles.</p>
+  <ul>
+    <li>Near zero — static. Stripes, spots, mazes.</li>
+    <li>High — dynamic. Waves, solitons, dividing spots, chaos.</li>
+    <li>Exactly zero with <code>v.sum()</code> near zero — dead tile.</li>
+  </ul>
+  <p>Draw the value as a small coloured bar on each tile.</p>
+
+  <h3>Acceptance check — calibration</h3>
+  <div class="card">
+    <p>The two existing demos are free ground truth. Include their exact coordinates in the grid,
+    or run them as two extra tiles.</p>
+    <p class="check">PASS only if:</p>
+    <ul>
+      <li class="check">tile at <code>f=0.0545, k=0.062</code> shows a branching maze;</li>
+      <li class="check">tile at <code>f=0.0367, k=0.0649</code> shows dividing spots;</li>
+      <li class="check">both are marked dynamic-or-static consistently with the existing MP4s.</li>
+    </ul>
+    <p>If those two tiles are wrong, the sweep harness is wrong. Fix the harness before reading
+    any other tile.</p>
+  </div>
+
+  <h3>Also record</h3>
+  <p>Mark tiles where <code>v.sum()</code> settles low and non-zero <b>and</b> the pattern does
+  not fill the domain. Those are the bistable candidates. Stage 2 uses only those.</p>
+</section>
+
+<section class="block">
+  <h2>Stage 2 — Designed seeds inside the bistable window</h2>
+
+  <p><b>Deliverable:</b> a short strip of runs, plus a printed verdict per run.
+  Not a sweep — a handful of experiments.</p>
+
+  <h3>Scope</h3>
+  <p>Use only the <code>(f, k)</code> pairs that stage 1 marked bistable. Add the reported
+  u-skate pair <code>f ≈ 0.062, k ≈ 0.0609</code> as a candidate to check.</p>
+
+  <h3>The four seeds</h3>
+  <ol>
+    <li><b>Single blob.</b> One circle of <code>v=1, u=0.5</code>. Baseline: does it survive,
+    grow, or die?</li>
+    <li><b>Blob pair.</b> Two circles, separated by a gap <code>g</code>. Sweep <code>g</code>
+    over about 8 values. This is the one real 1D knob.</li>
+    <li><b>Asymmetric blob.</b> One circle with a bite removed on one side. Broken symmetry is
+    what gives a structure a direction to travel in.</li>
+    <li><b>Gradient blob.</b> One circle with a left-to-right ramp in <code>v</code>.</li>
+  </ol>
+  <p>Use a fixed RNG seed. Add no noise, or add a tiny fixed amount. Noise destroys the very
+  symmetry you are controlling.</p>
+
+  <h3>The glider detector — nearly free</h3>
+  <p><code>run_sim</code> already tracks <code>v.sum()</code> and the x-centroid at
+  <code>demo.py:90-92</code>. Add the y-centroid, and the detector is two more lines.</p>
+  <ul>
+    <li><b>Glider:</b> <code>v.sum()</code> flat, centroid drifting at near-constant speed.</li>
+    <li><b>Static soliton:</b> <code>v.sum()</code> flat, centroid still.</li>
+    <li><b>Growth:</b> <code>v.sum()</code> rising — it filled the domain, not a localised
+    structure.</li>
+    <li><b>Death:</b> <code>v.sum()</code> falling to zero.</li>
+  </ul>
+  <p>Warning: the grid wraps (<code>np.roll</code>). A glider crossing the edge makes the
+  centroid jump. Unwrap the centroid track before you measure the speed, or stop the run before
+  the first crossing.</p>
+
+  <h3>Acceptance check</h3>
+  <p class="check">PASS if at least one <code>(f, k, seed)</code> combination gives flat
+  <code>v.sum()</code> and a centroid speed above zero, held for 2000 steps.</p>
+  <p>If nothing passes, report that plainly. A null result here is a real result — it means the
+  bistable window in this parameterisation is narrower than the stage 1 grid resolution. The next
+  step would be a finer local grid, not more seeds.</p>
+</section>
+
+<section class="block">
+  <h2>Stage 3 — Diffusion ratio (optional)</h2>
+
+  <p><b>Deliverable:</b> two more contact sheets, identical to stage 1, at
+  <code>D_v/D_u = 0.3</code> and <code>0.7</code>.</p>
+  <p>Three sheets, not a 4D cube. Expect the map to deform and the feature size to change.
+  Do not expect new pattern classes.</p>
+  <p>Keep <code>D_u = 1.0</code> in both. Keep the ratio below 1.</p>
+  <p>Run this only if stage 1 leaves an interesting question. It is a nice-to-have.</p>
+</section>
+
+<section class="block">
+  <h2>Files and interface</h2>
+
+  <div class="card">
+    <p><b>One new file: <code>sweep.py</code>.</b> Stages as flags. No new module, no config
+    file, no class hierarchy.</p>
+    <pre><code>python sweep.py --stage1                 # f-k contact sheet -> sweep_fk.png
+python sweep.py --stage1 --ratio 0.3     # stage 3, same code path
+python sweep.py --stage2                 # designed seeds, prints verdicts
+python sweep.py --selftest                # calibration check only</code></pre>
+  </div>
+
+  <ul>
+    <li><b>Do not modify <code>demo.py</code>.</b> <code>sweep.py</code> carries its own batched
+    float32 scipy stepper, with <code>D_u</code> and <code>D_v</code> as arguments. Import
+    <code>laplacian</code> and <code>step</code> from <code>demo.py</code> only as the reference
+    the selftest checks against. Two steppers is correct here: the demo one is tuned for one
+    grid and readability, the sweep one for 144 grids and speed.</li>
+    <li>Write PNGs through the existing ffmpeg call pattern, or through a plain
+    <code>numpy</code> tile-assembly plus one ffmpeg write. Add no image library.</li>
+    <li>Add the sweep outputs to <code>.gitignore</code> unless you want them in the repo.</li>
+  </ul>
+</section>
+
+<section class="block">
+  <h2>Order of work</h2>
+  <ol>
+    <li>Write the batched scipy stepper in <code>sweep.py</code>. Leave <code>demo.py</code>
+    alone.</li>
+    <li><b>The load-bearing check.</b> Run one tile of the batched stepper against
+    <code>demo.step</code> with the coral parameters, for 200 steps. The two must agree to
+    floating-point tolerance. I already confirmed the Laplacians match to <code>2.2e-16</code>;
+    this check extends that to the full reaction step and to float32.</li>
+    <li>Run stage 1. Check the two calibration tiles first. Stop if they fail.</li>
+    <li>Read the sheet. Record which tiles are bistable.</li>
+    <li>Run stage 2 on those tiles only.</li>
+    <li>Run stage 3 if a question remains.</li>
+  </ol>
+</section>
+
+<section class="block">
+  <h2>Costs</h2>
+
+  <p>Two costs, and they are unrelated. Compute time runs on your own machine and costs no
+  tokens. Token cost is only the agent work that writes and debugs the code.</p>
+
+  <h3>Compute time — measured</h3>
+
+  <p>All numbers below come from, or are scaled from, the benchmark in stage 1: 149 ms per step
+  for 144 tiles of 192 px, float32, scipy convolution, 12 cores. The stage 1 rows are measured.
+  The stage 2 and stage 3 rows are scaled from that measurement by cell count and step count.</p>
+
+  <table>
+    <tr><th>Item</th><th>Size</th><th>One run</th><th>Runs expected</th><th>Total</th></tr>
+    <tr>
+      <td>Stage 1 sheet</td>
+      <td>144 × 192 px, 8000 steps</td>
+      <td>20 min</td>
+      <td>3 — calibration fail, settle-time fix, final</td>
+      <td>60 min</td>
+    </tr>
+    <tr>
+      <td>Stage 1 at 224 px</td>
+      <td>144 × 224 px</td>
+      <td>50 min</td>
+      <td>only if 192 px looks cramped</td>
+      <td>0–50 min</td>
+    </tr>
+    <tr>
+      <td>Stage 2 seeds</td>
+      <td>~40 × 256 px, 10000 steps</td>
+      <td>~15 min</td>
+      <td>2</td>
+      <td>30 min</td>
+    </tr>
+    <tr>
+      <td>Stage 3 ratio sheets</td>
+      <td>2 × stage 1</td>
+      <td>20 min each</td>
+      <td>1 (optional)</td>
+      <td>0–40 min</td>
+    </tr>
+    <tr>
+      <td><b>Total</b></td><td></td><td></td><td></td>
+      <td class="tag"><b>1.5 to 3 hours</b></td>
+    </tr>
+  </table>
+
+  <p>The runs are unattended. Start one, do other work, come back.</p>
+  <p>Memory peak is 85 MB at 192 px, 151 MB at 256 px. No constraint on this machine.</p>
+  <p>Electricity: about 0.16 kWh for the whole plan — roughly 3 cents. Ignore it.</p>
+
+  <h3>Token cost — estimated, not measured</h3>
+
+  <div class="card flag">
+    <p>Mark the difference. The compute numbers above are measured on this machine. The token
+    numbers below are my estimate of how many turns the work takes. Treat them as an order of
+    magnitude, not a quote.</p>
+  </div>
+
+  <p>Claude Opus 5 prices at <b>$5 per million input tokens</b> and <b>$25 per million output
+  tokens</b>. Cached input reads cost about one tenth of the input rate, and most of a long
+  session's input is cached history.</p>
+
+  <table>
+    <tr><th>Work</th><th>Turns</th><th>Input (effective)</th><th>Output</th><th>Cost</th></tr>
+    <tr><td>Stage 1 — write, selftest, calibrate, read sheet</td><td>~10</td><td>~210k</td><td>~40k</td><td>~$2.05</td></tr>
+    <tr><td>Stage 2 — seeds and glider detector</td><td>~8</td><td>~170k</td><td>~32k</td><td>~$1.65</td></tr>
+    <tr><td>Stage 3 — two ratio sheets</td><td>~2</td><td>~42k</td><td>~8k</td><td>~$0.41</td></tr>
+    <tr><td><b>Total</b></td><td><b>~20</b></td><td><b>~0.42M</b></td><td><b>~80k</b></td><td class="tag"><b>~$4</b></td></tr>
+  </table>
+
+  <p>Realistic range: <b>$3 to $12</b>. The spread is debugging. If the batched stepper matches
+  the single-tile reference on the first try, it lands near $3. If the calibration tiles fail
+  twice and the settle-time metric needs rework, it lands near $12.</p>
+
+  <p>Reading each contact sheet costs about 4800 input tokens as an image — under 3 cents for
+  all five views. It does not move the total.</p>
+
+  <h3>Two ways to cut it</h3>
+  <ul>
+    <li><b>Use Claude Sonnet 5 for the mechanical parts.</b> It prices at $3 / $15 per million,
+    with an introductory $2 / $10 through 2026-08-31. Writing the batched stepper and the tile
+    assembly is mechanical work. That moves the total to roughly $1.70–$2.50. Keep Opus 5 for
+    reading the sheet and judging which tiles are bistable — that is the judgment step.</li>
+    <li><b>You are on Claude Code, not the raw API.</b> If your plan is a subscription, none of
+    the dollar figures above are charged to you. The real budget is rate limit, not money. In
+    that case read the table as "about 20 turns of work" and ignore the dollars.</li>
+  </ul>
+
+  <p>The largest single lever is not the model. It is the calibration check in stage 1. Catching
+  a broken harness on two known tiles costs one turn. Discovering it after you have read the
+  whole sheet costs the whole sheet.</p>
+</section>
+
+<section class="block">
+  <h2>Known risks</h2>
+  <ul>
+    <li><b>A single seeding hides exotica.</b> Stage 1 uses one noise seed, so it will not show
+    seeding-sensitive structures. That is by design — stage 2 exists for them. Do not read
+    "no gliders on the sheet" as "no gliders".</li>
+    <li><b>Settling time varies by region.</b> Low-<code>f</code> tiles evolve slowly. 8000 steps
+    may not settle them. If the motion metric looks high everywhere in one corner, raise the step
+    count there before you call it dynamic.</li>
+    <li><b>The u-skate coordinates are unverified in this code.</b> Marked above. Confirm or
+    reject in stage 2 and record the result.</li>
+    <li><b>Clipping.</b> <code>step</code> clips <code>u</code> and <code>v</code> to
+    <code>[0,1]</code> at <code>demo.py:67-68</code>. Near the stability ceiling that clip can
+    hide a divergence instead of showing it. Assert on the pre-clip range in the sweep, so an
+    unstable tile reports itself instead of looking like a pattern.</li>
+  </ul>
+</section>
