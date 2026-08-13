@@ -22,33 +22,50 @@ There is no repo-level `CLAUDE.md` — standing conventions come from the global
   assistant) and `.github/workflows/claude-code-review.yml`. Opening a PR now
   triggers an automated Claude review. Simon does not normally use PRs — this
   arrived with the app install.
-- Everything committed and pushed to `main`
+- **New this session, uncommitted:** `sweep.py` — stage 1 of `PLAN.html`, complete
+  and run. `--selftest` matches `demo.step` to 1.4e-15 over 200 steps.
+  `--stage1` ran 146 tiles at 192 px for 8000 steps in **21.3 min** (146 ms/step,
+  as predicted). Both calibration tiles pass. Outputs `sweep_fk.png`,
+  `sweep_fk.txt`, `sweep_fk_v.npy` — all gitignored, all regenerable.
+  Rendering uses PIL, not the ffmpeg path `PLAN.html` suggested: PIL is already
+  installed, keeps exact pixels, and avoids the ffmpeg `drawtext` font-path bug
+  on this machine.
+- Everything else committed and pushed to `main`
   (https://github.com/az9713/reaction-diffusion-simulation.git). Working tree
   clean apart from untracked `.ignore/`, which is local scratch — leave it
   untracked.
 
 ## Next task
 
-**Write `sweep.py`, stage 1 only.** `PLAN.html` is the complete spec — read the
-"Stage 1", "Files and interface", and "Order of work" sections. Summary:
+**Stage 2 of `PLAN.html` — designed seeds inside the bistable window.** Stage 1
+is finished and read. Add `--stage2` to `sweep.py`. Reuse `step_batch`,
+`make_buffers` and the pre-clip check; write a new seed builder and a glider
+detector.
 
-- Produce one contact-sheet PNG: 12 × 12 tiles, `f` from 0.010 to 0.090, `k`
-  from 0.045 to 0.070, at fixed `D_u=1.0`, `D_v=0.5`, `dt=1`.
-- **Do not modify `demo.py`.** `sweep.py` carries its own batched float32
-  stepper built on `scipy.ndimage.convolve(Z, K, mode="wrap")`. Import
-  `demo.laplacian` / `demo.step` only as the reference the selftest checks
-  against.
-- **Acceptance check — do this first, stop if it fails.** One tile of the
-  batched stepper must match `demo.step` at the coral parameters over 200 steps,
-  to floating-point tolerance. Then the sheet passes only if the tile at
-  `f=0.0545, k=0.062` shows a branching maze and the tile at `f=0.0367,
-  k=0.0649` shows dividing spots. A wrong calibration tile means a broken
-  harness, not interesting physics.
-- Label each tile static or dynamic with mean `|Δv|` over the final 50 steps.
-- Expect ~20 minutes of unattended compute per run at 192 px.
+Stage 1 found a wide bistable window at high `f`. Use these `(f, k)` pairs —
+each already holds a single localised structure that does not fill the domain:
 
-Stages 2 (designed seeds, glider detection) and 3 (diffusion-ratio sheets) come
-after stage 1 has been read. Do not start them early.
+| f | k | what stage 1 shows | mean \|Δv\| |
+|---|---|---|---|
+| 0.0609 | 0.0632 | one cross-shaped ring | 1.5e-05 |
+| 0.0682 | 0.0632 | one annulus | 1.4e-06 |
+| 0.0755 | 0.0609 | one rounded-square ring | 6.6e-06 |
+| 0.0609 | 0.0655 | 4 isolated static spots | 1.8e-07 |
+| 0.0682 | 0.0655 | 4 isolated static spots | 1.5e-07 |
+| 0.0755 | 0.0632 | 4 isolated static spots | 1.9e-07 |
+
+Add the reported u-skate pair `f=0.062, k=0.0609` as a candidate. Stage 1 does
+not cover it: the nearest tile `f=0.0609, k=0.0609` fills the domain with spots,
+so the bistable boundary runs between `k=0.0609` and `k=0.0632` there. Sample
+`k` finely across that gap.
+
+Acceptance: PASS if one `(f, k, seed)` gives flat `v.sum()` and a non-zero
+centroid speed held for 2000 steps. Unwrap the centroid before measuring speed —
+the grid wraps. A null result is a real result; report it.
+
+Stage 3 (diffusion-ratio sheets) needs no new code beyond a `--ratio` flag —
+`D_u` and `D_v` are already arguments of `run_stage1`. Run it only if a question
+remains.
 
 If the user asks for something else, that takes precedence.
 
@@ -76,6 +93,17 @@ If the user asks for something else, that takes precedence.
   `(f, k)` coordinates transfer directly; features are 2.5× larger than in the
   common `D_u=0.16` codes.
 - Reported u-skate coordinates `f ≈ 0.062, k ≈ 0.0609` are **unverified here**.
+- Stage 1 measured: 146 tiles, 192 px, 8000 steps, float32 = **21.3 min**, 146
+  ms/step. Of 146 tiles, **42 die** (high `f`, high `k`) and 104 live. No tile
+  broke the pre-clip bound, so no run was hiding a divergence behind the clip.
+- The `mean |Δv|` values fall in three bands, not two: **> 1e-4** genuinely
+  dynamic (waves, replicating spots, worms — the low-`f` corner); **1e-7 to
+  1e-5** static solitons; **0** filled or dead. Coral (3.5e-05) and mitosis
+  (4.4e-05) sit between the bands — still creeping at step 8000. The `DYN =
+  1e-4` cutoff in `sweep.py` is a rough two-way cut; read the number, not the
+  colour.
+- The demo MP4s run **longer** than the sheet: coral 25 200 steps, mitosis
+  16 800. The sheet at 8000 steps shows an earlier moment of the same pattern.
 
 ## Session-transient scratch (regenerate; durable record is `PLAN.html`)
 

@@ -1,2 +1,5 @@
 __pycache__/
 *.pyc
+sweep_fk*
+sweep_seeds*
+sweep_*.log
