@@ -68,24 +68,21 @@ There is no repo-level `CLAUDE.md` — standing conventions come from the global
 
 ## Next task
 
-**Run stage 5 and record what it says.** `python sweep.py --stage5` — 162 tiles,
-160 px, 20 000 steps, ~35 min estimated. Outputs `sweep_uskate_r050.{png,txt}`,
-`_tracks.npz`, `_v.npy`, all gitignored.
+Stages 1–5 have all run and all are documented. Pick one; ask Simon if unsure.
 
-Stage 5 is a test of a *belief*, not only another hunt. `HANDOFF.md` has recorded
-since the start that published `(f, k)` coordinates transfer directly into this
-parameterisation. Stage 2 went to the reported u-skate point `f=0.062, k=0.0609`
-and found nothing localised; stage 4 then killed the four nearest survivors. So
-either (a) the coordinates transfer and stage 2's `Δk = 4.3e-4` stride stepped
-over a band about `1e-4` wide, or (b) they do not transfer. Stage 5 scans `k` at
-`Δk = 5e-5` to separate the two. **Both outcomes are publishable:** a glider
-proves (a); a clean null across a comb finer than the feature width proves (b),
-and turns "we looked and did not find it" into "the published coordinates do not
-reproduce here".
+**A. Stage 6 — the seeding experiment (the only live scientific question).**
+Stage 5 eliminated resolution, so the remaining fork is *coordinates vs seed*, and
+only a seed experiment separates them. The cheapest decisive design: hold `(f, k)`
+at the reported u-skate point `f=0.062, k=0.0609` and at `f=0.0682, k=0.0632`, and
+vary the **seed** instead — several asymmetries, several sizes, and a few
+noise-soup fields. Reuse `run_stage2(pairs=..., keep_seeds=...)`; the seed list is
+built by `seed_shapes()`, so this is new shapes plus a call, not new machinery.
+**Budget from a measured step rate at the actual array shape**, not by scaling —
+that is the mistake stage 5 made. Note a soup field defeats centroid tracking, so
+either keep single-structure seeds or add blob detection first.
 
-Afterwards: write the outcome into `documentation.html` (the stage 5 section is
-written in the future tense and will need the result), `PLAN.html` and
-`README.md`, then commit.
+**B. Stop.** Five stages ran, three null results are recorded honestly, and the
+open question is named rather than papered over. This is a legitimate choice.
 
 If the user asks for something else, that takes precedence.
 
@@ -154,6 +151,28 @@ If the user asks for something else, that takes precedence.
 - The plateau in the two fastest curves is **domain saturation, not mass
   conservation** — that is what the `fill_max > 0.35` cut exists to catch. Read
   the fill panel of `sweep_glider_r050.png` before believing a flat `v.sum()`.
+- **Stage 5 is a null result: 0 gliders and 0 solitons of 162.** `k` from 0.0600
+  to 0.0640 at `Δk = 5e-5`, at `f = 0.0620` and `f = 0.0682`, `asym` seed, 160 px,
+  20 000 steps, **72.9 min** (estimated 35 — see the cost note below). Verdicts:
+  111 worm-filled, 51 worm-growing, 0 soliton, 0 decaying, 0 dead, 0 unstable.
+  The band holds two regimes and nothing between: below `k ≈ 0.0623` the seed
+  fills the grid (at the reported `k = 0.0609`, fill is **0.976** at `f=0.0620`
+  and **0.888** at `f=0.0682`); above it every tile stays under 0.35 fill but
+  keeps growing, smallest second-half growth **+0.22** (`f=0.0682`) and **+0.80**
+  (`f=0.0620`). The ten flattest mass curves in the run all have fill 0.775–1.000
+  — saturation again, not conservation.
+- **What stage 5 proves, stated exactly.** It **eliminates `k` resolution** as the
+  explanation for the missing glider. It eliminates nothing else. **Do not write
+  that the published coordinates fail to transfer** — stage 5 ran the `asym` seed
+  only, so seed inadequacy is an equally live explanation. Stage 2 showed
+  *symmetric* seeds cannot travel; that is not evidence `asym` is a shape a glider
+  grows from. Separating the two needs a **seeding experiment, not a finer sweep**,
+  and none has been run. An earlier draft of `documentation.html`, `README.md` and
+  the script's own output all made this overclaim; all three are now corrected.
+- **Cost prediction failed by 2.1×.** Stage 5 was budgeted at 35 min by scaling
+  stage 2's 150 ms/step by tile count and pixel area. Actual ≈ 219 ms/step. The
+  area-scaling that held from 192 px to 64 px did **not** hold at 160 px with 162
+  tiles. Re-measure at the real shape before quoting a runtime.
 - The reported u-skate pair `f=0.062, k=0.0609` produced **nothing localised**.
   Every seed there either grew to fill the domain or sat still. Across the fine
   `k` sweep 0.0605–0.0635 at `f=0.062`, no combination gave a moving soliton.

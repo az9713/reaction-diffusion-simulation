@@ -31,14 +31,16 @@ The parameter sweep is a second script. It never modifies `demo.py` — it carri
 own batched stepper and imports `demo` only as the reference its selftest checks against:
 
 ```bash
-python sweep.py --selftest              # both checks, seconds
+python sweep.py --selftest              # all three checks, seconds
 python sweep.py --stage1                # 12×12 f-k contact sheet (~21 min)
 python sweep.py --stage1 --ratio 0.3    # same sheet at another diffusion ratio
 python sweep.py --stage2                # designed seeds + glider detector (~25 min)
+python sweep.py --stage4                # 4 near-misses, 40 000 steps (~2 min)
+python sweep.py --stage5                # fine k rescan, 162 tiles (~73 min)
 ```
 
 Requires Python 3.10+, `numpy`, and an `ffmpeg` binary on `PATH`.
-`sweep.py` also needs `scipy` and `Pillow`.
+`sweep.py` also needs `scipy`, `Pillow` and `matplotlib`.
 Built and verified on Python 3.13.5 / numpy 2.2.6 / scipy 1.16.0 / Pillow 11.0.0 /
 ffmpeg 7.1.1, Windows 11.
 
@@ -264,12 +266,33 @@ fourteen `(f, k)` pairs. Symmetric seeds — one blob, and blob pairs at every g
 30 px — produced *exactly zero* centroid travel, which is the physics answering: a
 symmetric seed has no direction to travel in. Only the asymmetric blob moved, 6–10 px over
 its final 2000 steps, and its `v.sum()` is still rising there — so those are growing
-filaments, not conserved gliders. The published u-skate coordinates `f≈0.062, k≈0.0609`
-went in flagged unverified and came out **tested and not reproduced** in this
-parameterisation.
+filaments, not conserved gliders.
 
-Full write-up with all figures: [`documentation.html`](documentation.html). Method and
-acceptance criteria: [`PLAN.html`](PLAN.html).
+**Stage 4 settles the four near-misses: all worms.** Re-run alone for 40 000 steps, every
+one gains mass monotonically for the whole run — `+47%`, `+56%`, `+88%`, `+199%` across the
+second half. The best candidate, a clean travelling chevron at `f=0.0682, k=0.0632`, is
+still growing linearly at step 40 000 at only 17% fill. Two others plateau, but the fill
+track shows why: they had eaten half the torus. A flat mass curve means nothing without it.
+
+**Stage 5 rules out the search being too coarse. It does not explain the miss.** Stage 2
+scanned `k` at a stride of `4.3e-4` against a reported feature width near `1e-4`, so the
+band could have been stepped over. Stage 5 rescanned at `5e-5` — 162 tiles, 20 000 steps,
+72.9 min — and found **zero gliders and zero solitons**. The band holds two regimes and
+nothing between them: below `k≈0.0623` the seed fills the grid (at the reported
+`k=0.0609`, fill reaches `0.976`), above it structures stay localised but never stop
+growing (smallest second-half growth `+0.22`).
+
+So resolution is eliminated, and that is all that is eliminated. **Two explanations remain
+untested against each other:** the published coordinates may not transfer into this
+parameterisation, or the asymmetric blob may simply be the wrong seed — stage 2 showed
+symmetric seeds *cannot* travel, which is not evidence that this one *can*. Separating them
+needs a seeding experiment, not a finer sweep. An earlier version of this README called the
+u-skate coordinates "tested and not reproduced"; that overstated the evidence and has been
+corrected here.
+
+Full write-up with all figures, including what stage 5 got wrong:
+[`documentation.html`](documentation.html). Method and acceptance criteria:
+[`PLAN.html`](PLAN.html).
 
 ## Files
 

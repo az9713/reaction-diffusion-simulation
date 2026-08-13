@@ -462,7 +462,9 @@ def report_stage5(v, names, vs, fl, px, py, unstable, sample, ncol, png, txt, np
     print(f"\nstage 5: {'PASS' if n else 'FAIL'} — {n} glider(s) of {len(names)}.")
     if not n:
         print("  No flat-mass moving structure anywhere in the rescanned band.")
-        print("  That contradicts the 'published (f,k) transfer directly' claim.")
+        print("  This rules out k resolution as the explanation. It does NOT show that")
+        print("  the published (f,k) fail to transfer: only the asym seed was run, so")
+        print("  seed inadequacy remains an equally live explanation. Do not conflate.")
     for vd in ("soliton", "worm-growing", "decaying", "worm-filled", "dead", "unstable"):
         print(f"  {vd:12s} {verdicts.count(vd)}")
 
