@@ -219,9 +219,15 @@ def _ang(w, cos_t, sin_t):
     return np.arctan2(w @ sin_t, w @ cos_t)
 
 
-def run_stage2(size=192, steps=10000, Du=1.0, Dv=0.5, dtype=np.float32, sample=10):
-    pairs = BISTABLE + [(USKATE_F, kk) for kk in np.linspace(*USKATE_K, 8)]
+def run_stage2(size=192, steps=10000, Du=1.0, Dv=0.5, dtype=np.float32, sample=10,
+               pairs=None, keep_seeds=None, label="stage 2"):
+    """pairs / keep_seeds default to the full stage-2 grid. Restricting them is how
+    stages 4 and 5 run their own tiles without paying for the rest."""
+    if pairs is None:
+        pairs = BISTABLE + [(USKATE_F, kk) for kk in np.linspace(*USKATE_K, 8)]
     seeds = seed_shapes(size)
+    if keep_seeds is not None:
+        seeds = [s for s in seeds if s[0] in keep_seeds]
     names = [f"{sn} f{pf:.4f} k{pk:.4f}" for pf, pk in pairs for sn, _ in seeds]
     T = len(names)
     v = np.stack([s for _ in pairs for _, s in seeds]).astype(dtype)
@@ -237,9 +243,10 @@ def run_stage2(size=192, steps=10000, Du=1.0, Dv=0.5, dtype=np.float32, sample=1
     ax = np.empty((nsamp, T))
     ay = np.empty((nsamp, T))
     vs = np.empty((nsamp, T))
-    unstable = np.zeros(T, bool)
+    fl = np.empty((nsamp, T))   # fill over time: a grower that saturates the torus
+    unstable = np.zeros(T, bool)  # flattens v.sum() too, and would read as a glider.
 
-    print(f"stage 2: {T} tiles ({len(pairs)} f-k pairs x {len(seeds)} seeds), "
+    print(f"{label}: {T} tiles ({len(pairs)} f-k pairs x {len(seeds)} seeds), "
           f"{size} px, {steps} steps", flush=True)
     t0 = time.perf_counter()
     for s in range(steps):
@@ -249,6 +256,7 @@ def run_stage2(size=192, steps=10000, Du=1.0, Dv=0.5, dtype=np.float32, sample=1
         if s % sample == 0:
             j = s // sample
             vs[j] = v.sum(axis=(1, 2), dtype=np.float64)
+            fl[j] = (v > 0.1).mean(axis=(1, 2), dtype=np.float64)
             ax[j] = _ang(v.sum(axis=1, dtype=np.float64), cos_t, sin_t)
             ay[j] = _ang(v.sum(axis=2, dtype=np.float64), cos_t, sin_t)
         if s % 1000 == 0 and s:
@@ -258,15 +266,24 @@ def run_stage2(size=192, steps=10000, Du=1.0, Dv=0.5, dtype=np.float32, sample=1
 
     px = np.unwrap(ax, axis=0) * size / (2 * np.pi)   # unwrap: the grid wraps
     py = np.unwrap(ay, axis=0) * size / (2 * np.pi)
-    n2 = 2000 // sample                                # the final 2000 steps
+    # Full tracks, not their last row: a verdict that throws the trend away cannot be
+    # re-judged without paying for the whole run again.
+    return v, names, vs, fl, px, py, unstable, sample, len(seeds)
+
+
+def tail_metrics(vs, px, py, sample, window=2000):
+    """Verdict inputs over the final `window` steps: net displacement and flat mass."""
+    n2 = window // sample
     disp = np.hypot(px[-1] - px[-n2], py[-1] - py[-n2])
     tail = vs[-n2:]
     flat = (tail.max(0) - tail.min(0)) / np.maximum(tail.mean(0), 1e-9) < 0.02
-    fill = (v > 0.1).mean(axis=(1, 2), dtype=np.float64)
-    return v, names, vs[-1], fill, disp, flat, unstable
+    return disp, flat
 
 
-def report_stage2(v, names, vsum, fill, disp, flat, unstable, path_png, path_txt):
+def report_stage2(v, names, vs, fl, px, py, unstable, sample, ncol, path_png, path_txt):
+    vsum = vs[-1]
+    fill = (v > 0.1).mean(axis=(1, 2), dtype=np.float64)  # from the final v, as before
+    disp, flat = tail_metrics(vs, px, py, sample)
     verdicts, labels, bars = [], [], []
     scale = max(disp.max(), 1e-9)
     for i, nm in enumerate(names):
@@ -286,7 +303,7 @@ def report_stage2(v, names, vsum, fill, disp, flat, unstable, path_png, path_txt
         labels.append((f"{nm} {vd[:4]} {disp[i]:.1f}px", col))
         bars.append(None if vsum[i] < 1.0 else
                     (disp[i] / scale, (255, 140, 40) if vd == "GLIDER" else (90, 170, 120)))
-    render_grid(v, labels, bars, len(seed_shapes(v.shape[1])), path_png)
+    render_grid(v, labels, bars, ncol, path_png)
 
     lines = ["name\tv_sum\tfill\tdisp_2000\tverdict"]
     for i, nm in enumerate(names):
@@ -304,6 +321,150 @@ def report_stage2(v, names, vsum, fill, disp, flat, unstable, path_png, path_txt
           + ("" if n else "No moving localised structure survived 2000 steps."))
     for vd in ("soliton", "grew", "dead", "unsettled", "unstable"):
         print(f"  {vd:9s} {verdicts.count(vd)}")
+
+
+# ---------- stage 4: glider, or a worm that had not finished growing? ----------
+
+# Stage 2's four near-misses, selected by rule from sweep_seeds_r050.txt: asym seed,
+# verdict "unsettled", disp > 5 px over the final 2000 steps, fill < 0.35. They failed
+# the flat-mass test, not the motion test. k values come from linspace(*USKATE_K, 8).
+NEAR_MISS = [(0.060909, 0.063182), (0.062, 0.06307143),
+             (0.068182, 0.063182), (0.062, 0.0635)]
+FILL_CAP = 0.35     # above this the structure has saturated the torus, so v.sum()
+GROW_TOL = 0.02     # flattens for the wrong reason. Mass trend over the 2nd half.
+
+
+def glider_verdicts(vs, fl, px, py, unstable, sample):
+    """The one glider test, shared by stages 4 and 5. Judges the second half only:
+    the first half is still transient. A glider holds its mass AND keeps moving."""
+    h = len(vs) // 2
+    tail = vs[h:]
+    grow = (vs[-1] - vs[h]) / np.maximum(vs[h], 1e-9)   # direction, for the label
+    # Flatness is a spread, not an endpoint difference: a curve that rises then falls
+    # has grow ~ 0 and is not conserved. spread >= |grow|, so this is strictly stronger.
+    spread = (tail.max(0) - tail.min(0)) / np.maximum(tail.mean(0), 1e-9)
+    speed = np.hypot(px[-1] - px[h], py[-1] - py[h]) / ((len(vs) - 1 - h) * sample) * 1000
+    fmax = fl.max(axis=0)
+    verdicts = []
+    for i in range(vs.shape[1]):
+        if unstable[i]:
+            vd = "unstable"
+        elif vs[-1, i] < 1.0:
+            vd = "dead"
+        elif fmax[i] > FILL_CAP:
+            vd = "worm-filled"      # grew into the torus; flat mass here means nothing
+        elif spread[i] > GROW_TOL:
+            vd = "worm-growing" if grow[i] > 0 else "decaying"
+        elif speed[i] < 0.1:
+            vd = "soliton"          # mass settled, but it stopped moving
+        else:
+            vd = "GLIDER"
+        verdicts.append(vd)
+    return grow, speed, fmax, verdicts
+
+
+def report_stage4(v, names, vs, fl, px, py, unstable, sample, ncol, png, txt, npz):
+    np.savez_compressed(npz, vs=vs, fl=fl, px=px, py=py, sample=sample,
+                        names=np.array(names))
+    print(f"wrote {npz}")
+    t = np.arange(len(vs)) * sample
+    grow, speed, fmax, verdicts = glider_verdicts(vs, fl, px, py, unstable, sample)
+
+    lines = ["name\tv_sum_end\tgrow_2nd_half\tfill_max\tspeed_px_per_1k\tverdict"]
+    for i, nm in enumerate(names):
+        lines.append(f"{nm}\t{vs[-1, i]:.1f}\t{grow[i]:+.4f}\t{fmax[i]:.3f}\t"
+                     f"{speed[i]:.3f}\t{verdicts[i]}")
+    open(txt, "w").write("\n".join(lines) + "\n")
+    print(f"wrote {txt}")
+    print("\n".join(lines))
+
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    fig, (a1, a2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+    for i, nm in enumerate(names):
+        a1.plot(t, vs[:, i], lw=1.2, label=f"{nm}  {verdicts[i]}")
+        a2.plot(t, fl[:, i], lw=1.2)
+    a1.set_ylabel("v.sum()  (total mass)")
+    a1.legend(fontsize=8)
+    a1.set_title("Stage 4: a glider conserves mass; a worm keeps gaining it")
+    a2.axhline(FILL_CAP, color="k", ls="--", lw=0.8)
+    a2.set_ylabel(f"fill (v>0.1);  dashed = {FILL_CAP} cap")
+    a2.set_xlabel("step")
+    fig.tight_layout()
+    fig.savefig(png, dpi=110)
+    print(f"wrote {png}")
+
+    n = verdicts.count("GLIDER")
+    print(f"\nstage 4: {'PASS' if n else 'FAIL'} — {n} glider(s) of {len(names)}.")
+
+
+# ---------- stage 5: do the published u-skate coordinates transfer at all? ----------
+
+# Stage 2 scanned k in 8 steps across 0.0605-0.0635, so dk = 4.3e-4. The reported
+# u-skate band is about 1e-4 wide, which a 4.3e-4 stride can step straight over.
+# Stage 5 rescans k nine times finer. It is a test of the "published (f,k) transfer
+# directly" claim in HANDOFF.md, not only another glider hunt: if nothing with flat
+# mass appears anywhere in this band, that claim is what is wrong.
+S5_F = (0.0620, 0.0682)       # the reported u-skate f, and stage 4's chevron f
+S5_K = (0.0600, 0.0640)
+S5_DK = 5e-5                  # 81 k values, 9x finer than stage 2
+
+
+def s5_pairs():
+    ks = np.arange(S5_K[0], S5_K[1] + S5_DK / 2, S5_DK)
+    return [(ff, float(kk)) for ff in S5_F for kk in ks], len(ks)
+
+
+def report_stage5(v, names, vs, fl, px, py, unstable, sample, ncol, png, txt, npz):
+    np.savez_compressed(npz, vs=vs, fl=fl, px=px, py=py, sample=sample,
+                        names=np.array(names))
+    print(f"wrote {npz}")
+    grow, speed, fmax, verdicts = glider_verdicts(vs, fl, px, py, unstable, sample)
+    pairs, nk = s5_pairs()
+    kk = np.array([p[1] for p in pairs[:nk]])
+
+    lines = ["f\tk\tv_sum_end\tgrow_2nd_half\tfill_max\tspeed_px_per_1k\tverdict"]
+    for i, (pf, pk) in enumerate(pairs):
+        lines.append(f"{pf:.4f}\t{pk:.5f}\t{vs[-1, i]:.1f}\t{grow[i]:+.4f}\t"
+                     f"{fmax[i]:.3f}\t{speed[i]:.3f}\t{verdicts[i]}")
+    open(txt, "w").write("\n".join(lines) + "\n")
+    print(f"wrote {txt}")
+
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    fig, (a1, a2) = plt.subplots(2, 1, figsize=(11, 8), sharex=True)
+    for j, ff in enumerate(S5_F):
+        sl = slice(j * nk, (j + 1) * nk)
+        a1.plot(kk, grow[sl], lw=1.2, marker=".", ms=3, label=f"f={ff:.4f}")
+        a2.plot(kk, speed[sl], lw=1.2, marker=".", ms=3, label=f"f={ff:.4f}")
+    a1.axhline(GROW_TOL, color="k", ls="--", lw=0.8)
+    a1.axvline(0.0609, color="r", ls=":", lw=1.0)   # the reported u-skate k
+    a1.set_yscale("symlog", linthresh=1e-3)
+    a1.set_ylabel("mass growth, 2nd half")
+    a1.set_title(f"Stage 5: k rescanned at dk={S5_DK:g}. Dashed = the {GROW_TOL} flat-mass "
+                 f"cut; dotted red = reported u-skate k=0.0609")
+    a1.legend(fontsize=9)
+    a2.axvline(0.0609, color="r", ls=":", lw=1.0)
+    a2.set_ylabel("speed, px per 1000 steps")
+    a2.set_xlabel("k")
+    fig.tight_layout()
+    fig.savefig(png, dpi=110)
+    print(f"wrote {png}")
+
+    order = np.argsort(grow)
+    print("\nten flattest tiles (a glider must appear near the top):")
+    for i in order[:10]:
+        print(f"  f={pairs[i][0]:.4f} k={pairs[i][1]:.5f}  grow={grow[i]:+.4f}  "
+              f"fill={fmax[i]:.3f}  speed={speed[i]:.3f}  {verdicts[i]}")
+    n = verdicts.count("GLIDER")
+    print(f"\nstage 5: {'PASS' if n else 'FAIL'} — {n} glider(s) of {len(names)}.")
+    if not n:
+        print("  No flat-mass moving structure anywhere in the rescanned band.")
+        print("  That contradicts the 'published (f,k) transfer directly' claim.")
+    for vd in ("soliton", "worm-growing", "decaying", "worm-filled", "dead", "unstable"):
+        print(f"  {vd:12s} {verdicts.count(vd)}")
 
 
 # ---------- the load-bearing check ----------
@@ -340,6 +501,17 @@ def selftest():
     assert np.isfinite(m).all() and (m <= 5.0).all(), "float32 path diverged"
     assert v.std() > 1e-6, "float32 path flatlined"
 
+    sm = 10                                       # tail_metrics on synthetic tracks
+    tt = np.arange(400)
+    tvs = np.stack([np.full(400, 100.0), 100 + 0.5 * tt], 1)      # flat mass, rising mass
+    tpx = np.stack([0.03 * tt, np.zeros(400)], 1)                 # 6 px/2000, still
+    tpy = np.zeros((400, 2))
+    d, fl = tail_metrics(tvs, tpx, tpy, sm)
+    exp = 0.03 * (399 - 200)   # the window is [-200:], so 199 gaps, not 200. As shipped.
+    assert abs(d[0] - exp) < 1e-9 and d[1] == 0.0, f"tail displacement wrong: {d}"
+    assert fl[0] and not fl[1], f"flat-mass test wrong: {fl}"
+    print(f"tail_metrics on synthetic tracks: disp={d.round(3).tolist()} flat={fl.tolist()}")
+
     S = 64                                        # torus centroid survives a wrap
     b = _disc(S, 32, 2, 5).astype(np.float64)[None]
     th = 2 * np.pi * np.arange(S) / S
@@ -356,9 +528,14 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--stage1", action="store_true")
     ap.add_argument("--stage2", action="store_true")
+    ap.add_argument("--stage4", action="store_true",
+                    help="re-run stage 2's four near-misses alone, 40000 steps")
+    ap.add_argument("--stage5", action="store_true",
+                    help="rescan k 9x finer at two f values, 160 px, 20000 steps")
     ap.add_argument("--selftest", action="store_true")
     ap.add_argument("--size", type=int, default=192)
-    ap.add_argument("--steps", type=int, default=0, help="0 = 8000 stage 1, 10000 stage 2")
+    ap.add_argument("--steps", type=int, default=0,
+                    help="0 = 8000 stage 1, 10000 stage 2, 40000 stage 4")
     ap.add_argument("--ratio", type=float, default=0.5, help="D_v/D_u, must be <1")
     args = ap.parse_args()
     if args.selftest:
@@ -367,7 +544,20 @@ if __name__ == "__main__":
     if not 0 < args.ratio < 1:
         ap.error("--ratio must lie in (0,1): v must diffuse slower than u")
     tag = f"_r{round(args.ratio * 100):03d}"
-    if args.stage2:
+    if args.stage5:
+        out = run_stage2(size=args.size if args.size != 192 else 160,
+                         steps=args.steps or 20000, Dv=args.ratio,
+                         pairs=s5_pairs()[0], keep_seeds={"asym"}, label="stage 5")
+        p = os.path.join(HERE, f"sweep_uskate{tag}")
+        np.save(p + "_v.npy", out[0])
+        report_stage5(*out, p + ".png", p + ".txt", p + "_tracks.npz")
+    elif args.stage4:
+        out = run_stage2(size=args.size, steps=args.steps or 40000, Dv=args.ratio,
+                         pairs=NEAR_MISS, keep_seeds={"asym"})
+        p = os.path.join(HERE, f"sweep_glider{tag}")
+        np.save(p + "_v.npy", out[0])
+        report_stage4(*out, p + ".png", p + ".txt", p + "_tracks.npz")
+    elif args.stage2:
         out = run_stage2(size=args.size, steps=args.steps or 10000, Dv=args.ratio)
         np.save(os.path.join(HERE, f"sweep_seeds{tag}_v.npy"), out[0])
         report_stage2(*out, os.path.join(HERE, f"sweep_seeds{tag}.png"),

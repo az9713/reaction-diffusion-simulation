@@ -38,6 +38,29 @@ There is no repo-level `CLAUDE.md` — standing conventions come from the global
   `documentation.html` also gained the `<meta charset="utf-8">` it had always
   lacked — without it every em dash renders as mojibake over HTTP.
   `sweep_preview.jpg` is the only sweep image tracked in git.
+- **New this session:** `sweep.py` gained `--stage4` (the glider chase) and
+  `--stage5` (the fine `k` rescan). `run_stage2` now returns the **full `vs`,
+  `fl`, `px`, `py` tracks** plus `sample` and `ncol`, not just their last row;
+  `report_stage2` derives the verdict itself through the new `tail_metrics`.
+  `run_stage2` also takes optional `pairs=`, `keep_seeds=` and `label=`, so a few
+  tiles can run longer without paying for the rest.
+  Regression-checked: stage 2 at 64 px, 2000 steps gives a **byte-identical**
+  `.txt` and `.png` before and after the refactor. `--selftest` has three
+  checks, all passing (the new one drives `tail_metrics` with synthetic tracks).
+  `.gitignore` gained `sweep_glider*` and `sweep_uskate*`.
+- **Stage 4 answers the glider question: no. 0 of 4.** See "Facts already
+  established".
+- `documentation.html` gained three sections: stage 4's result, the two competing
+  explanations for the missing glider, and what stage 5 tests. It embeds the
+  stage-4 mass/fill figure (1000×800 JPEG, 90 KB). Render-checked over HTTP: no
+  mojibake, no horizontal overflow, tag counts balanced.
+- **The glider test now gates on a spread, not an endpoint difference.**
+  `glider_verdicts` is shared by stages 4 and 5. A 300-step trial exposed the old
+  rule: a mass curve that rises then falls has near-zero endpoint change and
+  scored as a conserved glider — 11 false positives. Flatness is now
+  `(max−min)/mean` over the second half, which is never smaller than the endpoint
+  measure. Replaying stage 4's saved `.npz` through the stricter rule returns all
+  four verdicts unchanged.
 - Everything else committed and pushed to `main`
   (https://github.com/az9713/reaction-diffusion-simulation.git). Working tree
   clean apart from untracked `.ignore/`, which is local scratch — leave it
@@ -45,20 +68,24 @@ There is no repo-level `CLAUDE.md` — standing conventions come from the global
 
 ## Next task
 
-`PLAN.html` is fully executed. Pick one; ask Simon if unsure.
+**Run stage 5 and record what it says.** `python sweep.py --stage5` — 162 tiles,
+160 px, 20 000 steps, ~35 min estimated. Outputs `sweep_uskate_r050.{png,txt}`,
+`_tracks.npz`, `_v.npy`, all gitignored.
 
-**A. Chase the near-miss glider (the open scientific question).** Stage 2 found
-no glider, but four asymmetric-seed tiles moved 6–10 px in the final 2000 steps
-while still growing, so they failed the flat-`v.sum()` test rather than the
-motion test. The best is `asym, f=0.0682, k=0.0632`, which formed a clean
-travelling chevron. To settle it, `run_stage2` must **return the `vs`, `px`, `py`
-tracks**, not just their last row — right now the trend is thrown away and the
-verdict cannot be re-judged without a 25-minute re-run. Then run those four
-pairs alone for 40 000 steps and plot `v.sum()` against time. A structure whose
-mass keeps rising is a growing worm, not a glider.
+Stage 5 is a test of a *belief*, not only another hunt. `HANDOFF.md` has recorded
+since the start that published `(f, k)` coordinates transfer directly into this
+parameterisation. Stage 2 went to the reported u-skate point `f=0.062, k=0.0609`
+and found nothing localised; stage 4 then killed the four nearest survivors. So
+either (a) the coordinates transfer and stage 2's `Δk = 4.3e-4` stride stepped
+over a band about `1e-4` wide, or (b) they do not transfer. Stage 5 scans `k` at
+`Δk = 5e-5` to separate the two. **Both outcomes are publishable:** a glider
+proves (a); a clean null across a comb finer than the feature width proves (b),
+and turns "we looked and did not find it" into "the published coordinates do not
+reproduce here".
 
-**B. Stop.** The plan is done and the results are recorded. This is a legitimate
-choice.
+Afterwards: write the outcome into `documentation.html` (the stage 5 section is
+written in the future tense and will need the result), `PLAN.html` and
+`README.md`, then commit.
 
 If the user asks for something else, that takes precedence.
 
@@ -112,6 +139,21 @@ If the user asks for something else, that takes precedence.
   6–10 px of centroid travel over the final 2000 steps, but `v.sum()` is still
   rising, so these are growing filaments, not conserved gliders. `asym,
   f=0.0682, k=0.0632` grew a clean chevron and is the best candidate.
+- **Stage 4 is a null result: 0 gliders of 4.** The four stage-2 near-misses,
+  `asym` seed only, 192 px, 40 000 steps, 1.6 min. Selection rule: `asym`,
+  verdict `unsettled`, `disp > 5` px, `fill < 0.35` — that is exactly
+  `(0.060909, 0.063182)`, `(0.062, 0.06307143)`, `(0.068182, 0.063182)`,
+  `(0.062, 0.0635)`. **Every one gains mass monotonically for the whole 40 000
+  steps.** Growth over the second half: +47%, +56%, +88%, +199%. Three saturate
+  the torus (`fill_max` 0.47–0.58); the fourth,
+  `asym f=0.0682 k=0.0632` — the handoff's best candidate, the clean chevron —
+  is still growing linearly at step 40 000 at only `fill=0.173`, so it is a slow
+  worm, not a glider. The 6–10 px of stage-2 travel was a growing filament's
+  centroid drifting, not a conserved structure moving. **The bistable window at
+  `D_v/D_u = 0.5` in this parameterisation contains no glider.**
+- The plateau in the two fastest curves is **domain saturation, not mass
+  conservation** — that is what the `fill_max > 0.35` cut exists to catch. Read
+  the fill panel of `sweep_glider_r050.png` before believing a flat `v.sum()`.
 - The reported u-skate pair `f=0.062, k=0.0609` produced **nothing localised**.
   Every seed there either grew to fill the domain or sat still. Across the fine
   `k` sweep 0.0605–0.0635 at `f=0.062`, no combination gave a moving soliton.

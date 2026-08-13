@@ -3,3 +3,6 @@ __pycache__/
 sweep_fk*
 sweep_seeds*
 sweep_*.log
+sweep_glider*
+sweep_uskate*
+.ignore/
