@@ -19,6 +19,10 @@ seconds with sound — the audio is half the piece.*
 (tabbed, with both videos playable inline; also in this repo as
 [`documentation.html`](documentation.html) — download and open locally)
 
+📐 **[Read the mathematics, live in your browser →](https://az9713.github.io/reaction-diffusion-simulation/math.html)**
+(why *one* equation gives all five patterns — derived, proved, and checked against
+this repo's own measurements; source: [`math.html`](math.html))
+
 ## Quick start
 
 ```bash
@@ -107,6 +111,48 @@ classification of Gray-Scott regimes:
 
 Raising $k$ by ~0.003 and lowering $f$ by ~0.018 is the whole difference between
 "coral reef" and "cells dividing."
+
+## The unified mathematics — read it live
+
+That last sentence is true but unsatisfying: *why* should those two small shifts change
+the picture so completely? [`math.html`](math.html) answers it properly — a self-contained,
+figure-rich derivation covering all five patterns this repo produces: coral, mitosis,
+solitons, worms, and the u-skate glider.
+
+[![the unified mathematics of Gray-Scott patterns](math_preview.png)](https://az9713.github.io/reaction-diffusion-simulation/math.html)
+
+▶ **[Open the live page →](https://az9713.github.io/reaction-diffusion-simulation/math.html)**
+*(the image above is a screenshot — click it, or the link, for the real thing)*
+
+The short version of what it derives:
+
+- **`(f, k)` does not pick the pattern.** It picks which steady states *exist* and which
+  are *stable*. When more than one is stable, the **starting field** picks between them.
+- Two closed forms carry the whole argument — $\mathrm{tr}\,J = k - v^2$ and
+  $\det J = (f+k)(v^2 - f)$ — giving a **fold curve** $k = \sqrt{f}/2 - f$ and a
+  **Hopf curve** $(f+k)^2 = f\sqrt{k}$, which meet exactly at $f = k = 1/16$.
+- Those two curves cut the knob plane into three regions, and the five patterns sort
+  cleanly between them. Mitosis and the soliton/worm point have **no live state at all**;
+  coral sits in a sliver only $2.5\times10^{-4}$ wide where the live state exists but
+  repels; **only the glider is genuinely bistable** — which is why it alone keeps a fixed
+  shape while it moves.
+- It proves **no Turing instability is possible** on the dead state, at any `(f, k)` and
+  any diffusion rates. So nothing here grows out of noise: every pattern is *seeded*.
+  That is the standing explanation for [the 320-tile null result](#the-glider-and-what-actually-blocked-it).
+
+It also carries a new measurement that isolates the cause. Same `f`, `k`, diffusion
+rates, grid and step count — **only the seed differs**: the asymmetric live seed gives
+one structure travelling at 1.344 px/1000 steps, the symmetric dead seed gives **19
+structures moving 0.00 px**.
+
+> **One correction it makes to this README and to `documentation.html`.** The simple
+> story below — that a dead-background seed is stuck in the wrong basin — is too strong.
+> At the u-skate point the dead background is **invaded and converted** to the live state
+> within 5000 steps, so both seeds end on the *same* background. What the seed actually
+> decides is the **structure** left standing on it. The conclusion survives; the mechanism
+> is different. `math.html` states it that way, with the measurements.
+
+No MathJax, no CDN, no external assets — it renders offline from the single file.
 
 ## Sound
 
@@ -436,3 +482,5 @@ Full write-up, the knob-by-knob table, the six-part retrospective and the correc
 | `sweep_e1_*_film.png` | the eight-panel filmstrips, with step labels |
 | `*_spectrogram.png` | full-track audio spectrograms |
 | [`documentation.html`](documentation.html) | standalone illustrated write-up (open locally) |
+| [`math.html`](math.html) | the mathematics of all five patterns — [live page](https://az9713.github.io/reaction-diffusion-simulation/math.html), or open locally |
+| `math_preview.png` | screenshot of `math.html` used as the clickable preview above |
