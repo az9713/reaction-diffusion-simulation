@@ -5,8 +5,7 @@ This file is the live "what to do next"; `PLAN.html` is the standing plan.
 There is no repo-level `CLAUDE.md` — standing conventions come from the global
 `~/.claude/CLAUDE.md`.
 
-Last updated 2026-08-13, after the literature audit. Previous state: commit
-`91704cd` (contents rail in `documentation.html`).
+Last updated 2026-08-13, at commit `caa419f` (the literature audit).
 
 ## Current state (as of latest push)
 
@@ -21,12 +20,14 @@ Last updated 2026-08-13, after the literature audit. Previous state: commit
   `--selftest` has three checks, all passing.
 - **All five stages have run.** Stages 2, 4 and 5 are null results. See "Facts
   already established" — **do not re-run any of them.**
-- **Docs are current and honest.** `README.md`, `documentation.html` (5.80 MB,
-  embedded media) and `PLAN.html`'s status table all carry the stage 4 and 5
-  results *and* the three corrections listed below. `documentation.html` also
-  carries the 2026-08-13 literature audit — four sections, `#found`, `#gap`,
-  `#missed`, `#bridge`, plus a contents rail. **`README.md` and `PLAN.html` do
-  not yet mention the audit**; they are correct but incomplete.
+- **Docs are current and honest, commit `caa419f`.** All four carry the audit:
+  `documentation.html` (5.80 MB, embedded media) has the four audit sections
+  `#found`, `#gap`, `#missed`, `#bridge` plus a contents rail with scrollspy
+  (`91704cd`); `README.md` has "What the audit found"; `PLAN.html` has the
+  corrected bistable-region card and a struck-through "not reproduced" box.
+  Both HTML files were rendered and checked at `127.0.0.1:8767` before the push.
+  Every superseded claim is **corrected in place, not deleted** — that is this
+  project's convention and the next session should keep it.
 - **GitHub Actions, commit `e57048e`** (from `/install-github-app`, merged PR #1):
   `.github/workflows/claude.yml` and `claude-code-review.yml`. Opening a PR
   triggers an automated review. Simon does not normally use PRs.
@@ -202,6 +203,23 @@ If the user asks for something else, that takes precedence.
   The sheet at 8000 steps shows an earlier moment of the same pattern.
 
 ## Session-transient scratch (regenerate; durable record is the committed file)
+
+**The audit's downloads are gone after a clear. Re-fetch, do not re-derive:**
+
+```bash
+# the working glider recipe — 2.5 KB of XML, everything E1 needs
+curl -s https://raw.githubusercontent.com/GollyGang/ready/master/Patterns/GrayScott1984/U-Skate/Munafo_glider.vti
+# Ready's Laplacian stencil — the 0.3x factor is at line 499
+curl -s https://raw.githubusercontent.com/GollyGang/ready/master/src/readybase/stencils.cpp
+```
+
+The paper (arXiv:1501.01990) is a PDF; `pdftoppm` is **not** installed, so
+`Read` cannot open it. `pymupdf` **is** installed — extract text with
+`fitz.open(path)` and set `PYTHONIOENCODING=utf-8` or the ligature `ﬁ` in the
+text raises `UnicodeEncodeError` on cp1252. The `ar5iv.labs.arxiv.org/html/...`
+mirror is the easier route and worked first try. The durable record of all of it
+is the audit sections in `documentation.html` and the numbers in E1 above; the
+memory file `uskate-glider-exact-recipe.md` also carries the recipe.
 
 Benchmarks were throwaway `python -c "..."` one-liners; nothing on disk. The
 durable record is the table in `PLAN.html`. Re-run only if the machine or the
