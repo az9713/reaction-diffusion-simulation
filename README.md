@@ -355,6 +355,13 @@ held to **−0.10%** across the second 50 000 steps, `fill` **0.115**, **1.344 p
 steps**. It travels left, crosses the wrap edge near step 50 000, and comes back with its
 shape intact.*
 
+![the u-skate glider in motion](sweep_e1_du164_preview.gif)
+
+*The same run in motion — one frame per 100 steps. Watch it cross the left edge and
+re-enter on the right about halfway through: that wrap is the clearest evidence the
+structure is conserved rather than merely long-lived.
+▶ [`sweep_e1_du164.mp4`](sweep_e1_du164.mp4) — full rate, 1024×512, 33 s.*
+
 Three knobs the `.vti` leaves implicit were read out of Ready's source rather than
 guessed, and `sweep.py --selftest` now asserts two of them:
 
@@ -392,6 +399,11 @@ follow for free — gives the real numbers:
 *The same structure at `Du = 1.0` — this repo's own value — on the rescaled grid. 1.35×
 larger, and it happens to travel right instead of left.*
 
+![the same glider in motion at this repo's own Du](sweep_e1_du300_scaled_preview.gif)
+
+*60 000 steps on the 173×87 grid, one frame per 100 steps.
+▶ [`sweep_e1_du300_scaled.mp4`](sweep_e1_du300_scaled.mp4) — full rate, 1384×696, 20 s.*
+
 The divergence at `1.233` independently confirms the `D · dt < 1.25` bound predicted from
 the stencil's `−1.6` eigenvalue at the top of this section.
 
@@ -419,6 +431,8 @@ Full write-up, the knob-by-knob table, the six-part retrospective and the correc
 | [`PLAN.html`](PLAN.html) | the sweep's spec: three-axis rulebook, per-stage acceptance checks, costs |
 | [`HANDOFF.md`](HANDOFF.md) | resume point — current state and the next task |
 | [`coral.mp4`](coral.mp4) · [`mitosis.mp4`](mitosis.mp4) | full-quality renders, 960×540, h264 + aac |
+| [`sweep_e1_du164.mp4`](sweep_e1_du164.mp4) · [`sweep_e1_du300_scaled.mp4`](sweep_e1_du300_scaled.mp4) | the glider in motion, silent, nearest-neighbour upscaled |
 | `*_preview.gif` | short silent excerpts for this page |
+| `sweep_e1_*_film.png` | the eight-panel filmstrips, with step labels |
 | `*_spectrogram.png` | full-track audio spectrograms |
 | [`documentation.html`](documentation.html) | standalone illustrated write-up (open locally) |

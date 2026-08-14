@@ -9,4 +9,8 @@ sweep_e1*
 sweep_e2*
 !sweep_e1_du164_film.png
 !sweep_e1_du300_scaled_film.png
+!sweep_e1_du164_preview.gif
+!sweep_e1_du300_scaled_preview.gif
+!sweep_e1_du164.mp4
+!sweep_e1_du300_scaled.mp4
 .ignore/

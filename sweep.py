@@ -2,7 +2,7 @@
 # demo.py is not modified; it is imported only as the reference the selftest checks.
 # Usage: python sweep.py --selftest        # batched stepper vs demo.step, seconds
 #        python sweep.py --stage1          # 12x12 sheet + 2 calibration tiles, ~20 min
-import argparse, os, sys, time
+import argparse, os, subprocess, sys, time
 import numpy as np
 from scipy.ndimage import convolve
 from PIL import Image, ImageDraw, ImageFont
@@ -506,7 +506,8 @@ def e1_seed(H, W):
     return u, v
 
 
-def run_e1(Du=E1["Du"], steps=50000, sample=50, nsnap=8, dtype=np.float32, hw=None):
+def run_e1(Du=E1["Du"], steps=50000, sample=50, nsnap=8, dtype=np.float32, hw=None,
+           video=None, vstride=100):
     """One tile, Du given in Ready's units. Dv tracks it at the file's ratio of 0.5,
     which is also this repo's, so E2 can walk one knob from 0.164 to 0.30.
 
@@ -544,6 +545,22 @@ def run_e1(Du=E1["Du"], steps=50000, sample=50, nsnap=8, dtype=np.float32, hw=No
     print(f"E1: 1 tile {W}x{H}, Ready Du={Du:g} Dv={Du/2:g} -> repo Du={du:.4f} "
           f"Dv={dv:.4f}, f={E1['f']} k={E1['k']}, {steps} steps, unclipped, "
           f"{np.dtype(dtype).name}", flush=True)
+
+    # Frames stream straight into ffmpeg, one at a time, as demo.py:203 does -- the run
+    # never holds more than the current frame. nearest-neighbour upscaling, not lanczos:
+    # at 128x64 a smooth filter blurs the glider into a smudge, and x8 keeps any grid
+    # even for yuv420p. The ramp below is render_grid's, so video and filmstrip match.
+    enc = None
+    if video:
+        enc = subprocess.Popen(
+            ["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo",
+             "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", "30", "-i", "-",
+             "-vf", "scale=iw*8:ih*8:flags=neighbor",
+             "-c:v", "libx264", "-crf", "18", "-preset", "medium",
+             "-pix_fmt", "yuv420p", video], stdin=subprocess.PIPE)
+        print(f"  video: every {vstride} steps -> {steps//vstride} frames, "
+              f"{steps/vstride/30:.0f}s at 30fps, {W*8}x{H*8}", flush=True)
+
     t0 = time.perf_counter()
     for s in range(steps):
         m = step_batch(u, v, f, k, du, dv, kern3, buf, check=True, clip=False)
@@ -551,6 +568,10 @@ def run_e1(Du=E1["Du"], steps=50000, sample=50, nsnap=8, dtype=np.float32, hw=No
         peak = max(peak, float(m[0]))
         if s in snap_at:
             snaps.append(v[0].copy())
+        if enc is not None and s % vstride == 0:
+            t = np.clip((v[0] - 0.05) / 0.30, 0.0, 1.0)
+            t = t * t * (3 - 2 * t)
+            enc.stdin.write(np.dstack([(t * 255).astype(np.uint8)] * 3).tobytes())
         if s % sample == 0:
             j = s // sample
             b = np.median(v, axis=(1, 2), keepdims=True)
@@ -565,6 +586,10 @@ def run_e1(Du=E1["Du"], steps=50000, sample=50, nsnap=8, dtype=np.float32, hw=No
             print(f"  step {s}/{steps}  {el/s*1000:.2f} ms/step  "
                   f"eta {(steps-s)*el/s/60:.1f} min", flush=True)
     print(f"  done in {(time.perf_counter()-t0)/60:.1f} min", flush=True)
+    if enc is not None:
+        enc.stdin.close()
+        assert enc.wait() == 0, "video encode failed"   # the check for the whole path
+        print(f"  wrote {video} ({os.path.getsize(video)/1e6:.1f} MB)")
     print(f"  pre-clip peak max(u,v) = {peak:.4f}  "
           f"(demo.py's [0,1] clip would {'HAVE FIRED' if peak > 1.0 else 'not have fired'})")
     print(f"  background median v: {bg[0]:.5f} -> {bg[-1]:.5f}")
@@ -709,6 +734,10 @@ if __name__ == "__main__":
     ap.add_argument("--scaled", action="store_true",
                     help="E1 only: stretch the grid by sqrt(du/0.164), the scaling "
                          "symmetry, so the seed keeps its size relative to the glider")
+    ap.add_argument("--video", action="store_true",
+                    help="E1 only: also write an MP4, one frame every --vstride steps")
+    ap.add_argument("--vstride", type=int, default=100,
+                    help="E1 only: steps per video frame (default 100 = 33s per 100k)")
     ap.add_argument("--selftest", action="store_true")
     ap.add_argument("--size", type=int, default=192)
     ap.add_argument("--steps", type=int, default=0,
@@ -726,12 +755,13 @@ if __name__ == "__main__":
                path=os.path.join(HERE, "sweep_e2_du_walk.txt"))
     elif args.e1:
         sc = (args.du / E1["Du"]) ** 0.5 if args.scaled else 1.0
-        out = run_e1(Du=args.du, steps=args.steps or 50000, hw=(
-                     round(E1["H"] * sc), round(E1["W"] * sc)),
-                     dtype=np.float64 if args.f64 else np.float32)
         p = os.path.join(HERE, f"sweep_e1_du{round(args.du*1000):03d}"
                                + ("_scaled" if args.scaled else "")
                                + ("_f64" if args.f64 else ""))
+        out = run_e1(Du=args.du, steps=args.steps or 50000, hw=(
+                     round(E1["H"] * sc), round(E1["W"] * sc)),
+                     dtype=np.float64 if args.f64 else np.float32,
+                     video=p + ".mp4" if args.video else None, vstride=args.vstride)
         np.save(p + "_v.npy", out[0])
         snaps, snap_at = out[8], sorted(out[9])
         report_stage4(*out[:8], 2, p + ".png", p + ".txt", p + "_tracks.npz", label="E1")
