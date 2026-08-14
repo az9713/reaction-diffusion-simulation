@@ -126,6 +126,7 @@ footer.page{ margin-top:4rem; padding-top:1.2rem; border-top:1px solid var(--bor
   <div class="tt">Contents</div>
   <ul class="toclist" id="toc">
     <li><a href="#origin">0. Five pictures, one equation</a></li>
+    <li><a href="#history">Historical background</a></li>
     <li><a href="#model">1. The model</a></li>
     <li><a href="#stirred">2. The well-stirred limit</a></li>
     <li><a href="#stability">3. Which states survive</a></li>
@@ -183,6 +184,7 @@ into the recipe that works on the first attempt.</p>
 
 <p>The route:</p>
 <ul>
+<li><a class="secref" href="#history">Historical background</a> says where the equation came from, and why it has a square in it. It can be skipped without loss.</li>
 <li><a class="secref" href="#model">&sect;1</a> derives the equations from the reaction, and fixes every symbol.</li>
 <li><a class="secref" href="#stirred">&sect;2</a> switches diffusion off and finds the steady states. A fold curve appears.</li>
 <li><a class="secref" href="#stability">&sect;3</a> asks which of those states survive a nudge. A second curve appears, and the two curves cut the knob plane into three regions.</li>
@@ -194,6 +196,163 @@ into the recipe that works on the first attempt.</p>
 <li><a class="secref" href="#glider">&sect;9</a> assembles the glider and checks it against measurement.</li>
 <li><a class="secref" href="#limits">&sect;10</a> states what this model does not capture.</li>
 </ul>
+
+<h2 id="history">Historical background: where this equation came from</h2>
+
+<p>The system of <a class="secref" href="#model">&sect;1</a> is usually met as a pattern generator,
+which makes its form look arbitrary. Why a square on <span class="m"><i class="v">v</i></span>?
+Why two knobs and not three? The answers are historical. The system was not built to make
+patterns, and for its first ten years it had no spatial dimension at all. It was built to settle
+an argument in chemical reactor engineering. The one design decision that produces every picture
+in this document was made for a reason that has nothing to do with space.</p>
+
+<p>This section is background. Nothing later depends on it.</p>
+
+<h3 id="hist-tank">A stirred tank, not a tray</h3>
+
+<p>P. Gray and S. K. Scott studied the <b>continuously stirred tank reactor</b> (CSTR): a vessel
+with an impeller, fed continuously with fresh reagent and drained continuously of its contents.
+The stirring holds the contents uniform, so the vessel has no interior geometry. Its model is a
+pair of ordinary differential equations &mdash; exactly the well-stirred limit that
+<a class="secref" href="#stirred">&sect;2</a> reaches by deleting the Laplacians. Two papers set
+out the scheme used here.</p>
+
+<ul>
+<li>P. Gray and S. K. Scott, <i>Autocatalytic reactions in the isothermal, continuous stirred tank
+reactor: isolas and other forms of multistability</i>, Chemical Engineering Science
+<b>38</b> (1983) 29&ndash;43.</li>
+<li>P. Gray and S. K. Scott, <i>Autocatalytic reactions in the isothermal CSTR: oscillations and
+instabilities in the system A&nbsp;<span class="op">+</span>&nbsp;2B&nbsp;<span class="op">&rarr;</span>&nbsp;3B;
+B&nbsp;<span class="op">&rarr;</span>&nbsp;C</i>, Chemical Engineering Science
+<b>39</b> (1984) 1087&ndash;1097.</li>
+</ul>
+
+<p>The second title is reaction (1.1) written as chemistry, with A for <i class="v">u</i>, B for
+<i class="v">v</i> and C for the inert product. The tank supplies both knobs, and neither is a free
+dial invented for convenience. The feed rate <i class="v">f</i> is the pump: it is the reciprocal
+of the mean time a molecule spends in the vessel, so <span class="m">1/<i class="v">f</i></span>
+is a residence time in seconds. The kill rate <i class="v">k</i> is the rate constant of the decay
+<span class="m"><i class="v">v</i> <span class="op">&rarr;</span> P</span>. Both are quantities a
+reactor operator sets or measures.</p>
+
+<h3 id="hist-isothermal">The motivation: taking heat out of the explanation</h3>
+
+<p>Read the vocabulary in those two titles. <em>Multistability</em>, and in the body of the work
+<em>ignition</em>, <em>extinction</em> and <em>hysteresis</em>. The words are borrowed from
+combustion, and that is the point of the exercise.</p>
+
+<p>Reactor engineers already knew that a tank can jump between two very different steady states at
+one setting, can ignite, can quench, and can oscillate. The standard explanation was
+<b>thermal feedback</b>: the reaction releases heat, the heat raises the temperature, the higher
+temperature accelerates the reaction. That is a positive loop through the energy balance, and it
+is enough to produce all of the listed behaviour.</p>
+
+<p>Gray and Scott asked whether the heat was necessary. Their answer was no. Cubic autocatalysis
+alone reproduces the whole list at <b>constant temperature</b>. That is why the word
+<em>isothermal</em> appears in both titles. Chemical self-amplification &mdash;
+<i class="v">v</i> making more <i class="v">v</i> &mdash; replaces thermal self-amplification, and
+the energy balance can be deleted entirely.</p>
+
+<p>So the system was designed from the start as the <b>smallest scheme that still produces
+multiple stable states</b>. That is worth holding on to, because it is exactly what
+<a class="secref" href="#stability">&sect;3</a> finds and what
+<a class="secref" href="#basins">&sect;5</a> turns into the central result of this document. The
+multistability is not a curiosity discovered later in a pattern model. It is the property the
+model was built to have.</p>
+
+<h3 id="hist-square">Why the square on <i class="v">v</i></h3>
+
+<p>This is the design decision. Consider the alternative, <b>quadratic</b> autocatalysis:</p>
+
+<p><span class="m"><i class="v">u</i> <span class="op">+</span> <i class="v">v</i>
+<span class="op">&rarr;</span> 2<i class="v">v</i></span>, with rate
+<span class="m"><i class="v">uv</i></span>.</p>
+
+<p>One molecule of each is enough, so the growth rate is proportional to
+<span class="m"><i class="v">v</i></span> itself. Removal is also proportional to
+<span class="m"><i class="v">v</i></span>. Halving <i class="v">v</i> halves both sides of the
+competition at once, so the outcome does not depend on how much <i class="v">v</i> is present.
+There is no threshold, and there is nothing for a seed to decide.</p>
+
+<p>Now the cubic reaction (1.1). It needs <b>two</b> molecules of <i class="v">v</i> to meet one of
+<i class="v">u</i> at the same place. Two-body meetings are rare when <i class="v">v</i> is rare, so
+by mass action the growth rate carries a square while removal stays linear. Deleting diffusion and
+factoring the <i class="v">v</i> equation (1.3) shows what that buys:</p>
+
+<p><span class="m">d<i class="v">v</i>/d<i class="v">t</i> <span class="op">=</span>
+<i class="v">uv</i><sup>2</sup> <span class="op">&minus;</span> (<i class="v">f</i>
+<span class="op">+</span> <i class="v">k</i>)<i class="v">v</i> <span class="op">=</span>
+<i class="v">v</i>&thinsp;(<i class="v">uv</i> <span class="op">&minus;</span> (<i class="v">f</i>
+<span class="op">+</span> <i class="v">k</i>))</span>.</p>
+
+<p>Chemical <i class="v">v</i> grows where <span class="m"><i class="v">uv</i>
+<span class="op">&gt;</span> <i class="v">f</i> <span class="op">+</span> <i class="v">k</i></span>
+and dies where the inequality reverses. The live states of
+<a class="secref" href="#stirred">&sect;2</a> are the equality case. The square is therefore the
+<b>minimum</b> nonlinearity that creates a threshold at all, and the threshold is an
+<em>amplitude</em>, not a parameter setting.</p>
+
+<p>Three consequences follow immediately, and each one is proved properly later.</p>
+
+<ul>
+<li>Every term in the <i class="v">v</i> equation carries a factor of <i class="v">v</i>. So
+<span class="m"><i class="v">v</i> <span class="op">=</span> 0</span> solves it for
+<b>every</b> <i class="v">f</i> and <i class="v">k</i>. The dead state is structural, not
+accidental &mdash; see <a class="secref" href="#stirred">&sect;2</a>.</li>
+<li>A small <i class="v">v</i> is below threshold, so it shrinks. Nothing grows out of noise
+&mdash; the content of <a class="secref" href="#diffusion">&sect;4</a>.</li>
+<li>The seed must therefore clear the threshold by itself. That is
+<a class="secref" href="#basins">&sect;5</a>, and it is why this repository's 320 tiles found
+nothing.</li>
+</ul>
+
+<div class="note"><b>The threshold, in the glider's own numbers.</b> The published glider runs at
+<span class="m"><i class="v">f</i> <span class="op">+</span> <i class="v">k</i>
+<span class="op">=</span> 0.062 <span class="op">+</span> 0.06093 <span class="op">=</span>
+0.12293</span>. Its seed sets a background of
+<span class="m"><i class="v">u</i> <span class="op">=</span> 0.5</span>,
+<span class="m"><i class="v">v</i> <span class="op">=</span> 0.3</span>
+(<a class="secref" href="#glider">&sect;9</a>), giving
+<span class="m"><i class="v">uv</i> <span class="op">=</span> 0.15</span>. That clears the
+threshold by 22&nbsp;percent, so the background sustains <i class="v">v</i>. A dead background has
+<span class="m"><i class="v">uv</i> <span class="op">=</span> 0</span> and cannot. The recipe is
+sized against this inequality. <span class="small">This is the diffusion-free estimate; diffusion
+moves <i class="v">v</i> out of a region and <i class="v">u</i> into it, so it shifts the true
+boundary. The exact statement is <a class="secref" href="#basins">&sect;5</a>.</span></div>
+
+<h3 id="hist-pearson">Pearson put the tank into space</h3>
+
+<p>Gray and Scott produced no patterns, because a stirred tank cannot hold one. The two Laplacians
+were added by <b>John E. Pearson</b>, in <i>Complex Patterns in a Simple System</i>, Science
+<b>261</b> (5118), 189&ndash;192, 1993. Pearson integrated the system in two dimensions, gave
+<i class="v">u</i> the larger diffusion coefficient, and swept
+<span class="m">(<i class="v">f</i>,&nbsp;<i class="v">k</i>)</span> to produce a published map of
+regimes. The names <em>coral</em> and <em>mitosis</em> used throughout this document descend from
+that map. Pearson's own abstract gives the ancestry: the scheme is a variant of Selkov's model of
+glycolysis, and is due to Gray and Scott.</p>
+
+<table>
+<tr><th>Who</th><th>What they contributed</th><th>What it produced</th></tr>
+<tr><td>Selkov</td><td>a cubic autocatalytic step, as a model of glycolysis</td><td>a biochemical oscillator</td></tr>
+<tr><td>Gray &amp; Scott, 1983&ndash;1984</td><td>the same step in a fed, drained, isothermal tank &mdash; the knobs <i class="v">f</i> and <i class="v">k</i></td><td>multistability without heat; no space, no patterns</td></tr>
+<tr><td>Pearson, 1993</td><td>the two diffusion terms, and a sweep of the knob plane</td><td>the published pattern zoo, including coral and mitosis</td></tr>
+<tr><td>Munafo</td><td>a search of the bistable region, with an asymmetric seed</td><td>the u-skate glider of <a class="secref" href="#glider">&sect;9</a></td></tr>
+</table>
+
+<p>Turing's 1952 work sits beside this line rather than in it. Turing gave the general principle
+that reaction plus unequal diffusion can break spatial symmetry. Gray-Scott arrived from reactor
+engineering, by a different route and for a different reason, and only later turned out to be a
+convenient vehicle for it. <a class="secref" href="#diffusion">&sect;4</a> shows that the
+connection is in fact weaker than usually stated: on the dead state of this system, the Turing
+mechanism cannot operate at all.</p>
+
+<p class="small">Sourcing note. The three citations above are verified against the published
+record. The exact diffusion coefficients and domain size that Pearson used are deliberately not
+quoted here, because they were not verified for this document; only the fact that
+<i class="v">u</i> diffuses faster is stated, and that is independently required by
+<a class="secref" href="#diffusion">&sect;4</a>. Every numeric value in this section
+&mdash; 0.12293, 0.15, 22&nbsp;percent &mdash; is computed from parameters already tabulated in
+<a class="secref" href="#glider">&sect;9</a>.</p>
 
 <h2 id="model">1. The model</h2>
 
