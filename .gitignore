@@ -5,4 +5,8 @@ sweep_seeds*
 sweep_*.log
 sweep_glider*
 sweep_uskate*
+sweep_e1*
+sweep_e2*
+!sweep_e1_du164_film.png
+!sweep_e1_du300_scaled_film.png
 .ignore/

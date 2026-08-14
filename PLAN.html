@@ -70,9 +70,10 @@
 <section class="block">
   <h2>Status — executed 2026-08-13</h2>
   <div class="card note">
-    <p><b>All three planned stages have run, and two unplanned follow-ups after them.</b>
-    Stages 4 and 5 are not in this document: they were added to settle the glider question
-    this plan opened and could not close. This plan is left exactly as it was written, so the
+    <p><b>All three planned stages have run, and four unplanned follow-ups after them &mdash;
+    the last of which found a glider.</b> Stages 4 and 5, and the experiments E1 and E2, are
+    not in this document: they were added to settle the glider question this plan opened and
+    could not close. E1 closed it. This plan is left exactly as it was written, so the
     predictions can be compared against the outcomes. The outcomes are below; the full
     write-up with figures is the addendum in <code>documentation.html</code>, and the live
     project state is <code>HANDOFF.md</code>.</p>
@@ -115,9 +116,25 @@
         <td><b>72.9 min</b> (2.1&times; over), 162 tiles, 0 gliders and 0 solitons</td>
       </tr>
       <tr>
+        <td>E1 replicate <code>Munafo_glider.vti</code> <span class="tag">unplanned</span></td>
+        <td class="tag"><b>PASS</b></td>
+        <td>not in this plan</td>
+        <td><b>0.6 min</b>, 1 tile at 100 000 steps — <b>a glider.</b> Mass &minus;0.10%,
+        fill 0.115, 1.344 px per 1000 steps</td>
+      </tr>
+      <tr>
+        <td>E2 walk <code>D<sub>u</sub></code> <span class="tag">unplanned</span></td>
+        <td class="tag">RAN — first answer withdrawn</td>
+        <td>not in this plan</td>
+        <td>~14 min. A fixed grid gave a false ceiling; rescaling by
+        <code>sqrt(&lambda;)</code> gives the real one, and this repo's own
+        <code>D<sub>u</sub>=1.0</code> is under it</td>
+      </tr>
+      <tr>
         <td><b>Total compute</b></td><td></td>
         <td>1.5 to 3 hours</td>
-        <td class="tag"><b>88 min planned + 74.5 min follow-up = 162.5 min</b></td>
+        <td class="tag"><b>88 min planned + 74.5 min follow-up + 15 min E1/E2
+        = 177.5 min</b></td>
       </tr>
     </table>
     <p>Three predictions in this document held. The <code>scipy</code> benchmark was accurate
@@ -154,6 +171,30 @@
     structure lives on the <em>live</em> uniform state <code>(u, v) ≈ (0.5, 0.3)</code> and is
     carved out of it, not dropped into an empty grid. See "Where gliders and u-skate live"
     below, and the four audit sections in <code>documentation.html</code>.</p>
+    <p><b>Resolved 2026-08-13 — E1 found a glider, and only one knob was ever load-bearing.</b>
+    The audited recipe was ported exactly and worked on the first run: one tile, 128&times;64
+    periodic, 100 000 steps, <b>0.6 min</b>, mass held to <b>&minus;0.10%</b> with
+    <code>fill</code> 0.115 and <b>1.344 px per 1000 steps</b>. Both knobs the audit listed as
+    untested turned out irrelevant &mdash; pre-clip <code>max(u,v)</code> peaks at 0.9819, so
+    the <code>[0,1]</code> clip never fires, and <code>float64</code> reproduces
+    <code>float32</code> to four decimals.</p>
+    <p><b>And <code>D<sub>u</sub></code> was not load-bearing either, which took a second
+    attempt to see.</b> Walking <code>D<sub>u</sub></code> upward on a <em>fixed</em>
+    128&times;64 grid killed the glider at 0.2735 &mdash; apparently below this plan's own
+    0.30. That reading is an artifact of the very scaling symmetry this document states three
+    paragraphs down: scaling both <code>D</code> by <code>&lambda;</code> is exactly a spatial
+    stretch by <code>sqrt(&lambda;)</code>, so a fixed grid shrinks the domain <em>and the
+    seed</em> as <code>D<sub>u</sub></code> rises. Stretching the grid by
+    <code>sqrt(D<sub>u</sub>/0.164)</code> moves the ceiling to 0.340&ndash;0.350 &mdash;
+    <code>D<sub>u</sub></code> 1.133&ndash;1.167 in this repo's units &mdash; and produces a
+    glider at <code>D<sub>u</sub> = 1.0</code> on a 173&times;87 grid. The divergence observed
+    at 1.233 independently confirms this plan's <code>D&middot;dt &lt; 1.25</code> bound.</p>
+    <p><b>So the whole explanation is the initial condition.</b> Stage 5 eliminated <code>k</code>
+    resolution; E2 eliminates <code>D<sub>u</sub></code>; E1 supplies the working seed. Stage 2
+    and stage 4 ran at 192&nbsp;px, already larger than the 173&times;87 shown to work, so
+    domain size was not their blocker. Stage 5's 160&nbsp;px is close to 173 on the travel axis
+    and stays undemonstrated. <b>This plan's three-axis rulebook was right; its choice of
+    initial condition was the single wrong decision, and it cost 162.5 minutes.</b></p>
     <p>One cost prediction failed. Stage 5 was budgeted at 35 minutes by scaling stage 2's
     measured 150&nbsp;ms/step by tile count and pixel area. It ran at about 219&nbsp;ms/step.
     The area-scaling that held from 192&nbsp;px to 64&nbsp;px did not hold at 160&nbsp;px with
@@ -179,6 +220,18 @@
   <code>D_u</code>, and the equations keep the same shape. Only the ratio
   <code>D_v/D_u</code> survives. The absolute size of <code>D</code> changes the zoom only —
   larger blobs, identical shapes.</p>
+
+  <div class="card flag">
+    <p><b>Measured 2026-08-13 (E2) — this paragraph is right, and it is also a trap.</b> The
+    zoom is real: scaling both <code>D</code> by <code>&lambda;</code> is a spatial stretch by
+    <code>sqrt(&lambda;)</code>, and a glider survives from <code>D_u = 0.547</code> to
+    <code>D_u &asymp; 1.13</code> in this repo's units once the grid is stretched to match. The
+    trap is that <b>the grid does not stretch itself.</b> Raising <code>D_u</code> at a fixed
+    resolution shrinks the domain <em>and the seed</em> relative to the structure, which killed
+    a glider at <code>D_u = 0.91</code> and looked exactly like a lattice ceiling. Any run that
+    changes <code>D</code> must rescale the grid by <code>sqrt(&lambda;)</code>, or it measures
+    the seed, not the diffusion.</p>
+  </div>
 
   <p>So the rulebook has three axes: <code>f</code>, <code>k</code>, and
   <code>D_v/D_u</code>.</p>
@@ -282,6 +335,12 @@
     this project's seed and diffusion constant, not about the coordinates. The two that
     actually differ are <code>D<sub>u</sub></code> and the background state — see the corrected
     box under "Where gliders and u-skate live" above.</p>
+    <p><b>Reproduced 2026-08-13 (E1) — this flag is now closed.</b> Run at
+    <code>f = 0.062, k = 0.06093</code> with <code>D<sub>u</sub> = 0.164</code> on the live
+    background, the coordinates produce a glider in 0.6 minutes: 128&times;64 periodic,
+    100 000 steps, mass held to &minus;0.10%, 1.344 px per 1000 steps. E2 then showed
+    <code>D<sub>u</sub></code> was not the obstacle either. The background state was the
+    only knob that mattered.</p>
   </div>
 
   <h3>The one legitimate seed knob</h3>
@@ -578,11 +637,15 @@ python sweep.py --selftest                # calibration check only</code></pre>
     may not settle them. If the motion metric looks high everywhere in one corner, raise the step
     count there before you call it dynamic.</li>
     <li><b>The u-skate coordinates are unverified in this code.</b> Marked above. Confirm or
-    reject in stage 2 and record the result. <b>Outcome: rejected</b> — swept finely and not
-    reproduced.</li>
+    reject in stage 2 and record the result. <s><b>Outcome: rejected</b> — swept finely and not
+    reproduced.</s> <b>Corrected — outcome: confirmed.</b> "Rejected" was a conclusion about
+    this project's seed, wrongly attributed to the coordinates. E1 ran them on the right
+    background and got a glider on the first try.</li>
     <li><b>Clipping.</b> <code>step</code> clips <code>u</code> and <code>v</code> to
     <code>[0,1]</code> at <code>demo.py:67-68</code>. Near the stability ceiling that clip can
     hide a divergence instead of showing it. Assert on the pre-clip range in the sweep, so an
-    unstable tile reports itself instead of looking like a pattern.</li>
+    unstable tile reports itself instead of looking like a pattern. <b>Outcome: the risk was
+    real but never materialised.</b> The assert shipped; no tile in any stage broke the bound,
+    and E1's pre-clip peak of 0.9819 shows the clip never fired there either.</li>
   </ul>
 </section>

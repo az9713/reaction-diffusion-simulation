@@ -37,6 +37,9 @@ python sweep.py --stage1 --ratio 0.3    # same sheet at another diffusion ratio
 python sweep.py --stage2                # designed seeds + glider detector (~25 min)
 python sweep.py --stage4                # 4 near-misses, 40 000 steps (~2 min)
 python sweep.py --stage5                # fine k rescan, 162 tiles (~73 min)
+python sweep.py --e1                    # replicate Ready's glider file (~0.6 min)
+python sweep.py --e1 --du 0.30 --scaled # the same glider at this repo's own Du
+python sweep.py --e2                    # walk Du (see the warning in the E2 block)
 ```
 
 Requires Python 3.10+, `numpy`, and an `ffmpeg` binary on `PATH`.
@@ -241,6 +244,13 @@ $D_u = 1.0$ this solver runs at **80%** of the stability ceiling. The reference
 implementation that does produce a u-skate glider runs the equivalent of **0.164** on this
 same stencil — 1.83× smaller, 44% of the ceiling. See [the audit](#what-the-audit-found).
 
+✅ *Both halves of that warning were later measured, and the sentence needs qualifying.*
+The zoom really is a zoom: rescale the grid by $\sqrt{\lambda}$ alongside $D$ and the
+glider survives all the way from $D_u = 0.547$ to $D_u \approx 1.13$ in this repo's units,
+$D_u = 1.0$ included. The lattice does bite, but only in the last 10% before the stability
+bound — and the 1.83× gap was never the barrier. See
+[the glider](#the-glider-and-what-actually-blocked-it).
+
 **The harness is checked before the science.** A rewritten solver that is subtly wrong
 produces a sheet full of plausible, meaningless pictures. So `--selftest` runs one tile
 of the batched stepper against `demo.step` for 200 steps (max difference `1.4e-15`) and
@@ -288,6 +298,12 @@ nothing between them: below `k≈0.0623` the seed fills the grid (at the reporte
 `k=0.0609`, fill reaches `0.976`), above it structures stay localised but never stop
 growing (smallest second-half growth `+0.22`).
 
+✅ *All three nulls are now explained, and none of them was about `f`, `k` or `Du`.* Every
+one of these runs started from a dead grid with a raised `v` blob. Given the right initial
+condition, the same solver produces a glider in 0.6 minutes — see
+[the glider](#the-glider-and-what-actually-blocked-it). The three paragraphs above stand
+as written; what changes is what they are evidence *of*.
+
 ### What the audit found
 
 Resolution was eliminated, and that was all that had been eliminated — until the primary
@@ -312,6 +328,11 @@ respect at once. This project drops a `v=1` blob into an *empty* grid; the worki
 sets `v=0` in three small rectangles carved out of an *occupied* one. Those are different
 basins of attraction, and no `(f, k)` sweep crosses between basins.
 
+✅ *The table's fourth "wrong" row was later demoted.* Both untested knobs turned out
+irrelevant, and `Du` turned out to be **different, not wrong** — a glider runs at this
+repo's own `Du` once the grid is rescaled. So the count is really **one** wrong knob, the
+initial condition, and it is the whole explanation.
+
 **The coordinates were never the problem.** Munafo's Table 1 gives the stable band as
 `0.0608833 ≤ k ≤ 0.0609829` at `f=0.06`, and shows it moves by under `6e-6` across three
 grid refinements. Stage 5's `5e-5` comb was correctly sized, and **2 of its 162 tiles sat
@@ -321,6 +342,68 @@ reproduced", then "untested"; both are withdrawn — they transfer exactly.
 
 The root cause is a single line: the primary source was never opened. One fetch was
 available at any point across five stages and 162.5 minutes of compute.
+
+### The glider, and what actually blocked it
+
+The audit's recipe was ported exactly and **it worked on the first run.** One tile,
+128×64 periodic, 100 000 steps, **0.6 minutes**.
+
+![the u-skate glider](sweep_e1_du164_film.png)
+
+*`Du=0.164, Dv=0.082, f=0.062, k=0.06093`. The seed is the dark notch at step 0. Mass
+held to **−0.10%** across the second 50 000 steps, `fill` **0.115**, **1.344 px per 1000
+steps**. It travels left, crosses the wrap edge near step 50 000, and comes back with its
+shape intact.*
+
+Three knobs the `.vti` leaves implicit were read out of Ready's source rather than
+guessed, and `sweep.py --selftest` now asserts two of them:
+
+- the boundary is **periodic** — `wrap` defaults to true in `AbstractRD.cpp:215`;
+- the stencil factor is **exact** — `stencils.cpp:499` is `RotationallySymmetric3x3(1,4,-20)/6`,
+  and this repo's kernel is `0.3 ×` it to machine precision;
+- the rectangles have **no off-by-one** — `overlays.cpp:631` tests `index/N` inclusive
+  from zero, which lands on 380 cells at `x ∈ [52, 71]`.
+
+**Both untested knobs were discharged, and neither mattered.** Pre-clip `max(u,v)` peaks
+at `0.9819`, so the `[0,1]` clip never fires. `float64` reproduces `float32` to four
+decimals.
+
+**Then a walk of `Du` produced a wrong answer, and the correction is the interesting
+part.** Raising `Du` on a fixed 128×64 grid killed the glider at `Du ≈ 0.2735` — below
+this repo's `0.30`. That reading is an **artifact**. Gray-Scott is scale-invariant:
+scaling both diffusion constants by $\lambda$ is exactly a spatial stretch by
+$\sqrt{\lambda}$. Holding the grid fixed while raising `Du` shrinks the domain *and the
+seed* relative to the structure, so the seed falls out of the skater's basin for reasons
+that have nothing to do with the lattice.
+
+Stretching the grid by $\sqrt{D_u/0.164}$ — the seed rectangles are fractions, so they
+follow for free — gives the real numbers:
+
+| Ready `Du` | this repo's `Du` | grid | result |
+|---|---|---|---|
+| 0.274 | 0.913 | 165×83 | **glider** (died at fixed scale) |
+| **0.300** | **1.000** | **173×87** | **glider** — mass `−0.09%`, speed 1.846 |
+| 0.340 | 1.133 | 184×92 | **glider** |
+| 0.350 | 1.167 | 187×93 | soliton — the real ceiling |
+| 0.370 | 1.233 | 199×99 | diverged to `inf` |
+
+![the same glider at this repo's own Du](sweep_e1_du300_scaled_film.png)
+
+*The same structure at `Du = 1.0` — this repo's own value — on the rescaled grid. 1.35×
+larger, and it happens to travel right instead of left.*
+
+The divergence at `1.233` independently confirms the `D · dt < 1.25` bound predicted from
+the stencil's `−1.6` eigenvalue at the top of this section.
+
+**So `Du` never blocked anything, and neither did `k`.** Stage 5 eliminated `k`
+resolution; E2 eliminates `Du`. What is left is the initial condition — a live `v = 0.3`
+background with `v` **lowered** in the right shape, against a dead `(1, 0)` background
+with `v` raised in the wrong one. Stage 2's and stage 4's 192 px grids already exceeded
+the 173×87 shown to work, so domain size was not their blocker either. Stage 5's 160 px
+is close to 173 on the travel axis and remains undemonstrated.
+
+**Three null results, one cause, and it was in a 2.5 KB file the whole time.** E1 and E2
+together cost under 15 minutes against the five stages' 162.5.
 
 Full write-up, the knob-by-knob table, the six-part retrospective and the corrective plan:
 [`documentation.html`](documentation.html), sections *The published answer*, *Knob-by-knob*,

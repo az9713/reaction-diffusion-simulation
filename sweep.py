@@ -22,12 +22,13 @@ def make_buffers(shape, dtype):
     return [np.empty(shape, dtype) for _ in range(3)]
 
 
-def step_batch(u, v, f, k, Du, Dv, kern3, buf, check=False):
+def step_batch(u, v, f, k, Du, Dv, kern3, buf, check=False, clip=True):
     """One Euler step on a (T,H,W) stack. Same term order as demo.step:63-68.
 
     f and k are (T,1,1) in the stack's dtype. Returns the per-tile pre-clip max
     when check=True, else None. kern3 is size 1 on the leading axis, so the wrap
-    convolution cannot bleed between tiles.
+    convolution cannot bleed between tiles. clip=False drops demo.py's [0,1] clamp,
+    which Ready does not have; every stage 1-5 run used clip=True.
     """
     lap, uvv, tmp = buf
     np.multiply(u, v, out=uvv)
@@ -48,8 +49,9 @@ def step_batch(u, v, f, k, Du, Dv, kern3, buf, check=False):
     m = None
     if check:  # PLAN "Known risks": the clip can hide a divergence. Look before clipping.
         m = np.maximum(u.max(axis=(1, 2)), v.max(axis=(1, 2)))
-    np.clip(u, 0, 1, out=u)
-    np.clip(v, 0, 1, out=v)
+    if clip:
+        np.clip(u, 0, 1, out=u)
+        np.clip(v, 0, 1, out=v)
     return m
 
 
@@ -125,12 +127,12 @@ def render_grid(v, labels, bars, ncol, path):
 
     labels[i] = (text, rgb). bars[i] = (fraction 0..1, rgb) or None.
     """
-    T, S, _ = v.shape
+    T, S, W = v.shape                             # W != S only for E1's 128x64 grid
     t = np.clip((v - 0.05) / 0.30, 0.0, 1.0)
     t = t * t * (3 - 2 * t)                       # same ramp as demo.colorize
     gray = (t * 255).astype(np.uint8)
     pad, lab = 3, 17
-    cw, ch = S + pad, S + lab + pad
+    cw, ch = W + pad, S + lab + pad
     rows = -(-T // ncol)
     img = Image.new("RGB", (ncol * cw + pad, rows * ch + pad), (16, 16, 20))
     d = ImageDraw.Draw(img)
@@ -142,7 +144,7 @@ def render_grid(v, labels, bars, ncol, path):
         d.text((x + 1, y + S + 2), labels[i][0], font=font, fill=labels[i][1])
         if bars[i]:
             frac, bc = bars[i]
-            d.rectangle([x, y + S + lab - 1, x + max(int(S * frac), 1), y + S + lab],
+            d.rectangle([x, y + S + lab - 1, x + max(int(W * frac), 1), y + S + lab],
                         fill=bc)
     img.save(path)
     print(f"wrote {path} ({img.size[0]}x{img.size[1]})")
@@ -363,7 +365,8 @@ def glider_verdicts(vs, fl, px, py, unstable, sample):
     return grow, speed, fmax, verdicts
 
 
-def report_stage4(v, names, vs, fl, px, py, unstable, sample, ncol, png, txt, npz):
+def report_stage4(v, names, vs, fl, px, py, unstable, sample, ncol, png, txt, npz,
+                  label="stage 4"):
     np.savez_compressed(npz, vs=vs, fl=fl, px=px, py=py, sample=sample,
                         names=np.array(names))
     print(f"wrote {npz}")
@@ -387,7 +390,7 @@ def report_stage4(v, names, vs, fl, px, py, unstable, sample, ncol, png, txt, np
         a2.plot(t, fl[:, i], lw=1.2)
     a1.set_ylabel("v.sum()  (total mass)")
     a1.legend(fontsize=8)
-    a1.set_title("Stage 4: a glider conserves mass; a worm keeps gaining it")
+    a1.set_title(f"{label}: a glider conserves mass; a worm keeps gaining it")
     a2.axhline(FILL_CAP, color="k", ls="--", lw=0.8)
     a2.set_ylabel(f"fill (v>0.1);  dashed = {FILL_CAP} cap")
     a2.set_xlabel("step")
@@ -396,7 +399,8 @@ def report_stage4(v, names, vs, fl, px, py, unstable, sample, ncol, png, txt, np
     print(f"wrote {png}")
 
     n = verdicts.count("GLIDER")
-    print(f"\nstage 4: {'PASS' if n else 'FAIL'} — {n} glider(s) of {len(names)}.")
+    print(f"\n{label}: {'PASS' if n else 'FAIL'} — {n} glider(s) of {len(names)}.")
+    return verdicts
 
 
 # ---------- stage 5: do the published u-skate coordinates transfer at all? ----------
@@ -469,6 +473,150 @@ def report_stage5(v, names, vs, fl, px, py, unstable, sample, ncol, png, txt, np
         print(f"  {vd:12s} {verdicts.count(vd)}")
 
 
+# ---------- E1: replicate Ready's Munafo_glider.vti exactly ----------
+
+# Every number here is read off Patterns/GrayScott1984/U-Skate/Munafo_glider.vti in
+# github.com/GollyGang/ready. Three things that file leaves implicit, checked in its
+# source rather than assumed:
+#   * the boundary. The <rule> carries no wrap attribute and AbstractRD.cpp:215
+#     defaults wrap to true, so mode="wrap" is right.
+#   * the Laplacian. Ready's default 2-D stencil (stencils.cpp:499) is the Mehrstellen
+#     [[1,4,1],[4,-20,4],[1,4,1]]/6, and KERN above is exactly 0.3x it. So a Ready D
+#     divides by K_SCALE to become a D for this repo: 0.164 -> 0.5467, and this repo's
+#     own Du=1.0 reads back as Ready's 0.30.
+#   * the rectangles. overlays.cpp:631 tests index/N inclusive on both ends, with the
+#     index counted from 0 and N the full dimension. e1_seed reproduces that literally.
+# Ready does not clip u and v, so E1 runs with clip=False.
+K_SCALE = 0.3
+E1 = dict(H=64, W=128, Du=0.164, Dv=0.082, f=0.062, k=0.06093, u_bg=0.5, v_bg=0.3)
+E1_RECTS = [(0.40, 0.62, 0.56, 0.74),   # x0, y0, x1, y1, as fractions of W and H
+            (0.40, 0.40, 0.56, 0.52),
+            (0.48, 0.50, 0.56, 0.62)]
+E1_DEV = 0.05      # a cell counts as "structure" once |v - background| passes this
+
+
+def e1_seed(H, W):
+    """u=0.5 and v=0.3 everywhere, then v=0 in three rectangles. Only chemical b is
+    overwritten, so u stays 0.5 inside the rectangles too."""
+    u = np.full((H, W), E1["u_bg"])
+    v = np.full((H, W), E1["v_bg"])
+    rx, ry = np.arange(W) / W, np.arange(H) / H
+    for x0, y0, x1, y1 in E1_RECTS:
+        v[np.ix_((ry >= y0) & (ry <= y1), (rx >= x0) & (rx <= x1))] = 0.0
+    return u, v
+
+
+def run_e1(Du=E1["Du"], steps=50000, sample=50, nsnap=8, dtype=np.float32, hw=None):
+    """One tile, Du given in Ready's units. Dv tracks it at the file's ratio of 0.5,
+    which is also this repo's, so E2 can walk one knob from 0.164 to 0.30.
+
+    hw overrides the 64x128 grid. Gray-Scott is scale-invariant: scaling both D by
+    lambda is exactly a spatial stretch by sqrt(lambda), so raising Du at a fixed
+    grid shrinks the domain AND the seed relative to the glider's natural size.
+    E1_RECTS are fractions, so passing hw scaled by sqrt(lambda) undoes both and
+    separates a real lattice ceiling from that artifact.
+
+    The live v=0.3 background breaks stage 2's metrics: v.sum() is almost all
+    background and (v>0.1).mean() is 1.0 at step 0, so glider_verdicts would call a
+    perfect glider "worm-filled". Everything below is measured on the deviation from
+    the background, |v - median(v)|, which reduces to plain v when the background is
+    dead — the stage 2 case. glider_verdicts itself is unchanged.
+    """
+    H, W = hw or (E1["H"], E1["W"])
+    u0, v0 = e1_seed(H, W)
+    u, v = u0[None].astype(dtype), v0[None].astype(dtype)
+    f = np.full((1, 1, 1), E1["f"], dtype)
+    k = np.full((1, 1, 1), E1["k"], dtype)
+    kern3 = KERN.astype(dtype)[None]
+    buf = make_buffers(u.shape, dtype)
+    du, dv = Du / K_SCALE, Du / 2 / K_SCALE       # Ready units -> this repo's
+
+    thx = 2 * np.pi * np.arange(W) / W
+    thy = 2 * np.pi * np.arange(H) / H
+    cx, sx, cy, sy = np.cos(thx), np.sin(thx), np.cos(thy), np.sin(thy)
+    nsamp = steps // sample
+    vs, fl = np.empty((nsamp, 1)), np.empty((nsamp, 1))
+    ax, ay, bg = np.empty((nsamp, 1)), np.empty((nsamp, 1)), np.empty(nsamp)
+    snaps, snap_at = [], set(np.linspace(0, steps - 1, nsnap).astype(int).tolist())
+    unstable = np.zeros(1, bool)
+    peak = 0.0
+
+    print(f"E1: 1 tile {W}x{H}, Ready Du={Du:g} Dv={Du/2:g} -> repo Du={du:.4f} "
+          f"Dv={dv:.4f}, f={E1['f']} k={E1['k']}, {steps} steps, unclipped, "
+          f"{np.dtype(dtype).name}", flush=True)
+    t0 = time.perf_counter()
+    for s in range(steps):
+        m = step_batch(u, v, f, k, du, dv, kern3, buf, check=True, clip=False)
+        unstable |= ~(m <= 5.0)
+        peak = max(peak, float(m[0]))
+        if s in snap_at:
+            snaps.append(v[0].copy())
+        if s % sample == 0:
+            j = s // sample
+            b = np.median(v, axis=(1, 2), keepdims=True)
+            dev = np.abs(v - b)
+            bg[j] = b[0, 0, 0]
+            vs[j] = dev.sum(axis=(1, 2), dtype=np.float64)
+            fl[j] = (dev > E1_DEV).mean(axis=(1, 2), dtype=np.float64)
+            ax[j] = _ang(dev.sum(axis=1, dtype=np.float64), cx, sx)
+            ay[j] = _ang(dev.sum(axis=2, dtype=np.float64), cy, sy)
+        if s % 10000 == 0 and s:
+            el = time.perf_counter() - t0
+            print(f"  step {s}/{steps}  {el/s*1000:.2f} ms/step  "
+                  f"eta {(steps-s)*el/s/60:.1f} min", flush=True)
+    print(f"  done in {(time.perf_counter()-t0)/60:.1f} min", flush=True)
+    print(f"  pre-clip peak max(u,v) = {peak:.4f}  "
+          f"(demo.py's [0,1] clip would {'HAVE FIRED' if peak > 1.0 else 'not have fired'})")
+    print(f"  background median v: {bg[0]:.5f} -> {bg[-1]:.5f}")
+
+    px = np.unwrap(ax, axis=0) * W / (2 * np.pi)
+    py = np.unwrap(ay, axis=0) * H / (2 * np.pi)
+    names = [f"E1 Du{Du:.4f}"]
+    return v, names, vs, fl, px, py, unstable, sample, np.stack(snaps), snap_at
+
+
+# ---------- E2: how far can Du be pushed before the glider dies? ----------
+
+# E1 otherwise fixed. 0.164 is Ready's value; 0.30 is what this repo's Du=1.0 becomes
+# once the 0.3x stencil factor is taken out.
+#
+# WARNING: this walk holds the grid at 128x64, and that makes its answer an artifact. Gray-
+# Scott is scale-invariant: scaling both D by lambda is exactly a spatial stretch by
+# sqrt(lambda), so raising Du here shrinks the domain AND the seed relative to the
+# glider's natural size. The death it reports at Du=0.2735 is the seed leaving the
+# skater's basin, not a lattice ceiling. Run `--e1 --du X --scaled` for the real
+# number: it stretches the grid by sqrt(X/0.164) and the fractional E1_RECTS follow.
+# Measured that way the ceiling is Du_ready 0.340-0.350 (repo 1.133-1.167), so this
+# repo's own Du=1.0 does support a glider. Stages 2, 4 and 5 were NOT searching a
+# region where the structure cannot exist; their initial condition was the blocker.
+E2_DU = np.round(np.arange(0.164, 0.3001, 0.01), 5).tolist() + [0.30]
+
+
+def run_e2(steps=60000, path=None):
+    rows = []
+    for i, d in enumerate(E2_DU):
+        print(f"\n--- E2 {i+1}/{len(E2_DU)} ---", flush=True)
+        v, names, vs, fl, px, py, unstable, sample, _, _ = run_e1(Du=d, steps=steps)
+        grow, speed, fmax, verdicts = glider_verdicts(vs, fl, px, py, unstable, sample)
+        rows.append((d, vs[-1, 0], grow[0], fmax[0], speed[0], verdicts[0]))
+        print(f"  Du={d:.3f} (repo {d/K_SCALE:.4f}) -> {verdicts[0]}", flush=True)
+
+    lines = ["Du_ready\tDu_repo\tdev_sum_end\tgrow_2nd_half\tfill_max\tspeed_px_per_1k\tverdict"]
+    for d, s, g, fm, sp, vd in rows:
+        lines.append(f"{d:.3f}\t{d/K_SCALE:.4f}\t{s:.1f}\t{g:+.4f}\t{fm:.3f}\t{sp:.3f}\t{vd}")
+    if path:
+        open(path, "w").write("\n".join(lines) + "\n")
+        print(f"\nwrote {path}")
+    print("\n".join(lines))
+    live = [d for d, _, _, _, _, vd in rows if vd == "GLIDER"]
+    print(f"\nE2: at a FIXED 128x64 grid the glider survives at Du_ready in "
+          f"{min(live):.3f}..{max(live):.3f} (repo {min(live)/K_SCALE:.4f}.."
+          f"{max(live)/K_SCALE:.4f}) of {len(E2_DU)} tested. This is NOT the ceiling: "
+          f"the grid must stretch by sqrt(Du/0.164) or the seed shrinks with Du. "
+          f"Rerun `--e1 --du X --scaled`, which gives 0.340..0.350."
+          if live else "\nE2: no glider at any Du tested.")
+
+
 # ---------- the load-bearing check ----------
 
 def selftest():
@@ -523,6 +671,23 @@ def selftest():
     err = np.abs(np.diff(px, axis=0) - (-2.0)).max()
     print(f"torus centroid across the wrap edge: max step error {err:.2e} px")
     assert err < 1e-6, "centroid does not track a blob across the wrap edge"
+
+    # E1 rests on two claims about Ready. Both are checkable here, not by code reading.
+    mehr = np.array([[1., 4., 1.], [4., -20., 4.], [1., 4., 1.]]) / 6.0  # stencils.cpp:499
+    assert np.abs(KERN - K_SCALE * mehr).max() < 1e-15, "KERN is not 0.3x Ready's stencil"
+    print(f"KERN vs {K_SCALE}x Ready's Mehrstellen stencil: exact")
+
+    eu, ev = e1_seed(E1["H"], E1["W"])             # overlays.cpp:631 rasterisation
+    hole = ev == 0.0
+    ys, xs = np.nonzero(hole)
+    assert (eu == 0.5).all(), "u must be 0.5 everywhere, rectangles included"
+    assert int(hole.sum()) == 380, f"seed has {int(hole.sum())} zeroed cells, want 380"
+    assert (xs.min(), xs.max()) == (52, 71), f"seed x span {xs.min()}-{xs.max()}, want 52-71"
+    assert (ys.min(), ys.max()) == (26, 47), f"seed y span {ys.min()}-{ys.max()}, want 26-47"
+    assert not hole[:, 52:62][(np.arange(64) >= 34) & (np.arange(64) <= 39)].any(), \
+        "the third rectangle must reach only x>=62"
+    print(f"e1_seed: {int(hole.sum())} zeroed cells, x {xs.min()}-{xs.max()}, "
+          f"y {ys.min()}-{ys.max()}, u flat at 0.5")
     print("selftest OK")
 
 
@@ -534,6 +699,16 @@ if __name__ == "__main__":
                     help="re-run stage 2's four near-misses alone, 40000 steps")
     ap.add_argument("--stage5", action="store_true",
                     help="rescan k 9x finer at two f values, 160 px, 20000 steps")
+    ap.add_argument("--e1", action="store_true",
+                    help="replicate Ready's Munafo_glider.vti: 1 tile, 128x64, unclipped")
+    ap.add_argument("--du", type=float, default=E1["Du"],
+                    help="E1 only: Du in Ready's units. 0.164 = the file, 0.30 = this repo")
+    ap.add_argument("--f64", action="store_true", help="E1 only: run in float64")
+    ap.add_argument("--e2", action="store_true",
+                    help="walk E1's Du from Ready's 0.164 to this repo's 0.30")
+    ap.add_argument("--scaled", action="store_true",
+                    help="E1 only: stretch the grid by sqrt(du/0.164), the scaling "
+                         "symmetry, so the seed keeps its size relative to the glider")
     ap.add_argument("--selftest", action="store_true")
     ap.add_argument("--size", type=int, default=192)
     ap.add_argument("--steps", type=int, default=0,
@@ -546,7 +721,23 @@ if __name__ == "__main__":
     if not 0 < args.ratio < 1:
         ap.error("--ratio must lie in (0,1): v must diffuse slower than u")
     tag = f"_r{round(args.ratio * 100):03d}"
-    if args.stage5:
+    if args.e2:
+        run_e2(steps=args.steps or 60000,
+               path=os.path.join(HERE, "sweep_e2_du_walk.txt"))
+    elif args.e1:
+        sc = (args.du / E1["Du"]) ** 0.5 if args.scaled else 1.0
+        out = run_e1(Du=args.du, steps=args.steps or 50000, hw=(
+                     round(E1["H"] * sc), round(E1["W"] * sc)),
+                     dtype=np.float64 if args.f64 else np.float32)
+        p = os.path.join(HERE, f"sweep_e1_du{round(args.du*1000):03d}"
+                               + ("_scaled" if args.scaled else "")
+                               + ("_f64" if args.f64 else ""))
+        np.save(p + "_v.npy", out[0])
+        snaps, snap_at = out[8], sorted(out[9])
+        report_stage4(*out[:8], 2, p + ".png", p + ".txt", p + "_tracks.npz", label="E1")
+        render_grid(snaps, [(f"step {s}", (230, 225, 210)) for s in snap_at],
+                    [None] * len(snaps), 2, p + "_film.png")
+    elif args.stage5:
         out = run_stage2(size=args.size if args.size != 192 else 160,
                          steps=args.steps or 20000, Dv=args.ratio,
                          pairs=s5_pairs()[0], keep_seeds={"asym"}, label="stage 5")
