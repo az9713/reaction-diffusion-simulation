@@ -141,6 +141,19 @@
     ran that one seed only. An earlier draft of the addendum claimed the null had settled the
     first of those; it had not, and that claim has been withdrawn in
     <code>documentation.html</code>, <code>README.md</code> and the script's own output.</p>
+    <p><b>The literature audit, 2026-08-13 — this plan's central assumption was wrong.</b>
+    Neither of the two candidates above was the answer. A published working configuration was
+    found: R. P. Munafo, arXiv:1501.01990, and the pattern file
+    <code>Patterns/GrayScott1984/U-Skate/Munafo_glider.vti</code> in
+    <code>github.com/GollyGang/ready</code>. The coordinates <b>do</b> transfer — <code>f</code>
+    and <code>k</code> match to the digit, and stage 5's <code>5e-5</code> comb was correctly
+    sized against a published band of <code>0.0608833 ≤ k ≤ 0.0609829</code>. Two of stage 5's
+    162 tiles sat inside that band. What differed was <code>D<sub>u</sub></code> — 0.30 here
+    against 0.164 in the working file, on the same stencil — and the <b>initial condition</b>,
+    which this plan specified from the blank state <code>(u=1, v=0)</code>. The u-skate
+    structure lives on the <em>live</em> uniform state <code>(u, v) ≈ (0.5, 0.3)</code> and is
+    carved out of it, not dropped into an empty grid. See "Where gliders and u-skate live"
+    below, and the four audit sections in <code>documentation.html</code>.</p>
     <p>One cost prediction failed. Stage 5 was budgeted at 35 minutes by scaling stage 2's
     measured 150&nbsp;ms/step by tile count and pixel area. It ran at about 219&nbsp;ms/step.
     The area-scaling that held from 192&nbsp;px to 64&nbsp;px did not hold at 160&nbsp;px with
@@ -245,13 +258,30 @@
   is why the existing demos show mazes and dividing spots, and no gliders.</p>
 
   <div class="card flag">
+    <p><b>Corrected 2026-08-13 — this is the sentence that cost five stages.</b> The blank
+    state is the wrong background. Munafo's working u-skate glider sits on the <em>live</em>
+    uniform state <code>u = 0.5, v = 0.3</code>, and the glider is made by setting
+    <code>v = 0</code> in three small rectangles — reagent <b>removed</b> from an occupied
+    field, not <b>added</b> to an empty one. Every stage in this project seeded a
+    <code>v = 1</code> blob into <code>(u=1, v=0)</code>, which is a different basin of
+    attraction. No sweep of <code>(f, k)</code> crosses between basins, which is why stages 2,
+    4 and 5 could stand on the published coordinates and still return zero.</p>
+  </div>
+
+  <div class="card flag">
     <p><b>Unverified.</b> Reported u-skate coordinates are near <code>f ≈ 0.062,
     k ≈ 0.0609</code> for ratio-2 codes. I have not run this here. Treat it as a starting point
     to check in stage 2, not as a fact.</p>
-    <p><b>Resolved 2026-08-13 — not reproduced.</b> Stage 2 swept <code>k</code> from 0.0605 to
-    0.0635 at <code>f = 0.062</code>, against all eleven designed seeds. Every combination
+    <p><s><b>Resolved 2026-08-13 — not reproduced.</b> Stage 2 swept <code>k</code> from 0.0605
+    to 0.0635 at <code>f = 0.062</code>, against all eleven designed seeds. Every combination
     either grew to fill the domain or sat perfectly still. No moving localised structure
-    appeared at or near those coordinates. The flag stands, now with evidence behind it.</p>
+    appeared at or near those coordinates. The flag stands, now with evidence behind it.</s></p>
+    <p><b>Verified 2026-08-13, and the paragraph above is withdrawn.</b> The coordinates are
+    correct and they do transfer: the working reference is <code>f = 0.062, k = 0.06093</code>,
+    which stage 5 sampled to within <code>3e-5</code>. "Not reproduced" was a statement about
+    this project's seed and diffusion constant, not about the coordinates. The two that
+    actually differ are <code>D<sub>u</sub></code> and the background state — see the corrected
+    box under "Where gliders and u-skate live" above.</p>
   </div>
 
   <h3>The one legitimate seed knob</h3>

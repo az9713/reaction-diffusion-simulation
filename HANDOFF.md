@@ -5,7 +5,8 @@ This file is the live "what to do next"; `PLAN.html` is the standing plan.
 There is no repo-level `CLAUDE.md` — standing conventions come from the global
 `~/.claude/CLAUDE.md`.
 
-Last updated 2026-08-13, at commit `2c4005f`.
+Last updated 2026-08-13, after the literature audit. Previous state: commit
+`91704cd` (contents rail in `documentation.html`).
 
 ## Current state (as of latest push)
 
@@ -20,9 +21,12 @@ Last updated 2026-08-13, at commit `2c4005f`.
   `--selftest` has three checks, all passing.
 - **All five stages have run.** Stages 2, 4 and 5 are null results. See "Facts
   already established" — **do not re-run any of them.**
-- **Docs are current and honest, commit `2c4005f`.** `README.md`,
-  `documentation.html` (5.78 MB, embedded media) and `PLAN.html`'s status table
-  all carry the stage 4 and 5 results *and* the three corrections listed below.
+- **Docs are current and honest.** `README.md`, `documentation.html` (5.80 MB,
+  embedded media) and `PLAN.html`'s status table all carry the stage 4 and 5
+  results *and* the three corrections listed below. `documentation.html` also
+  carries the 2026-08-13 literature audit — four sections, `#found`, `#gap`,
+  `#missed`, `#bridge`, plus a contents rail. **`README.md` and `PLAN.html` do
+  not yet mention the audit**; they are correct but incomplete.
 - **GitHub Actions, commit `e57048e`** (from `/install-github-app`, merged PR #1):
   `.github/workflows/claude.yml` and `claude-code-review.yml`. Opening a PR
   triggers an automated review. Simon does not normally use PRs.
@@ -37,24 +41,41 @@ Last updated 2026-08-13, at commit `2c4005f`.
 
 ## Next task
 
-Stages 1–5 have run and are documented. Pick one; ask Simon if unsure.
+⚠️ **The seeding experiment previously written here was cancelled on 2026-08-13.**
+It proposed holding `(f, k)` at `f=0.062, k=0.0609` and varying the seed. A
+literature audit (see "The audit" below) found a complete working recipe, and
+that plan was wrong in two ways: the diffusion constant is off by 1.83×, and
+`f=0.0620` is a row where stage 2 produced **zero solitons in 88 tiles across all
+eleven seeds**. Do not run it.
 
-**A. Stage 6 — the seeding experiment (the only live scientific question).**
-Stage 5 eliminated `k` resolution, so the remaining fork is *coordinates vs seed*,
-and only a seed experiment separates them. Cheapest decisive design: hold `(f, k)`
-fixed at the reported u-skate point `f=0.062, k=0.0609` and at `f=0.0682,
-k=0.0632`, and vary the **seed** instead — several asymmetries, several sizes, a
-few noise-soup fields. Reuse `run_stage2(pairs=..., keep_seeds=...)`; seeds come
-from `seed_shapes()`, so this is new shapes plus a call, not new machinery.
-Two warnings, both learned the hard way:
+Do these in order. **E1 is cheap and has a binary outcome — start there.**
+
+**E1 — replicate `Munafo_glider.vti` exactly.** One tile. `Du=0.164, Dv=0.082,
+f=0.062, k=0.06093`, 128×64 periodic, background `u=0.5, v=0.3` **everywhere**,
+then `v=0` in three rectangles (fractions of the grid): `(0.40,0.62)-(0.56,0.74)`,
+`(0.40,0.40)-(0.56,0.52)`, `(0.48,0.50)-(0.56,0.62)`. Reuse
+`run_stage2(pairs=..., keep_seeds=...)`; this is one new entry in `seed_shapes()`
+plus a `Du`/`Dv` argument, not new machinery. Either a glider appears or the port
+is wrong — both beat another sweep.
+
+**E2 — walk `Du` from 0.164 up to 0.30** with E1 otherwise fixed, and find where
+the glider dies. That measures whether this repo's `Du=1.0` could ever have
+supported the structure. A number, not a fourth null.
+
+**E3 — only then vary `(f, k)` and the seed.** Perturb outward from the working
+point. Any new scan must use the live background, and should extend `k` past
+`0.0640`: stage 2's strongest soliton band is at `k=0.0655`, outside every window
+searched so far.
+
+Three warnings, all learned the hard way:
 1. **Budget from a measured step rate at the actual array shape.** Do not scale a
    benchmark by tile count and pixel area — that is how stage 5's estimate came
    out 2.1× low.
 2. **A soup field defeats centroid tracking.** `_ang` follows one structure, not
    fifty. Keep single-structure seeds, or add blob detection first.
-
-**B. Stop.** Five stages ran, three null results are recorded honestly, and the
-open question is named rather than papered over. This is a legitimate choice.
+3. **`step_batch` clips `u` and `v` into [0,1]; Ready does not clip.** The clip
+   has never been active in any run so far, but E1 starts from a different state.
+   Keep the pre-clip check on.
 
 If the user asks for something else, that takes precedence.
 
@@ -71,6 +92,39 @@ If the user asks for something else, that takes precedence.
   stage 2's; `s5_pairs` builds stage 5's grid.
 
 ## Facts already established — do not re-derive
+
+### The audit — where the glider actually lives (2026-08-13, not yet run)
+
+- **The recipe is public and complete.** Ready ships Munafo's glider as
+  `Patterns/GrayScott1984/U-Skate/Munafo_glider.vti` in
+  `github.com/GollyGang/ready` — 2.5 KB of XML, readable with `curl`. Values in
+  E1 above. Backing paper: R. P. Munafo, *Stable localized moving patterns in the
+  2-D Gray-Scott model*, arXiv:1501.01990.
+- **Eight of fourteen knobs already matched.** Stage 5 matched the working file on
+  the equation, the time step, the stencil family, `f`, `k`, the ratio, the
+  boundary and the grid. Four differ; two (float32, and the `[0,1]` clip) are
+  untested. The four are **`Du`** and **the initial condition** — and the
+  initial condition is wrong three ways at once: dead background `(1, 0)` instead
+  of live `(0.5, 0.3)`, `v` **raised** instead of **lowered**, and the wrong shape.
+  Different basin of attraction; no `(f, k)` scan crosses between basins.
+- **The kernels are commensurable.** Ready's default 2-D Laplacian
+  (`src/readybase/stencils.cpp:499`) is the Mehrstellen 9-point
+  `[[1,4,1],[4,-20,4],[1,4,1]]/6`. The Sims kernel at `demo.py:37-42` is **exactly
+  0.3×** it. So this repo's `Du=1.0` reads as **0.30** against the file's
+  **0.164** — 1.83× larger, and 80% of the explicit-Euler stability limit versus
+  the file's 44%.
+- **`k` was never the problem.** Munafo's Table 1 gives the stable band as
+  `0.0608833 ≤ k ≤ 0.0609829` at `f=0.06`, and shows it moves by under `6e-6`
+  across three grid refinements. Stage 5's `Δk = 5e-5` comb was correctly sized,
+  and **2 of its 162 tiles sat inside that band** (`k=0.06090`, `0.06095` at
+  `f=0.0620`). The run stood on the target for 72.9 minutes with the other two
+  knobs wrong.
+- **Stage 2's table already proved seed-dependence and was never read that way.**
+  At `f=0.0682, k=0.0632`: `single` → soliton, `asym` → worm. Same coordinates,
+  different attractor. Cross-tabulated 2026-08-13 from `sweep_seeds_r050.txt`,
+  which has been on disk since 2026-08-12.
+- Full write-up: `documentation.html`, sections `#found`, `#gap`, `#missed`,
+  `#bridge`.
 
 ### The glider question, and the one claim not to repeat
 
@@ -91,7 +145,9 @@ If the user asks for something else, that takes precedence.
   stop growing (smallest second-half growth **+0.22** / **+0.80**).
 - ⚠️ **What stage 5 proves, stated exactly.** It **eliminates `k` resolution** as
   the explanation. It eliminates **nothing else**. **Do NOT write that the
-  published u-skate coordinates fail to transfer into this parameterisation.**
+  published u-skate coordinates fail to transfer into this parameterisation** —
+  the audit above shows `f` and `k` transfer exactly, and `Du` plus the initial
+  condition are what differ.
   Stage 5 ran the `asym` seed only, so seed inadequacy is an equally live
   explanation. Stage 2 showed *symmetric* seeds **cannot** travel — that is not
   evidence `asym` **can**. Separating the two needs a seeding experiment, not a

@@ -235,6 +235,12 @@ the ratio $D_v/D_u$ matters — $D_u$ alone is a zoom control. The 9-point stenc
 negative eigenvalue is $-1.6$, so explicit Euler is stable only while $D \cdot dt < 1.25$;
 `demo.py` already sits near that ceiling at $D_u = 1.0$.
 
+⚠️ *"Zoom control" is true in the continuum and misleading on a fixed lattice.* $D_u$ also
+sets how many pixels a feature spans, and therefore how accurate the Euler step is. At
+$D_u = 1.0$ this solver runs at **80%** of the stability ceiling. The reference
+implementation that does produce a u-skate glider runs the equivalent of **0.164** on this
+same stencil — 1.83× smaller, 44% of the ceiling. See [the audit](#what-the-audit-found).
+
 **The harness is checked before the science.** A rewritten solver that is subtly wrong
 produces a sheet full of plausible, meaningless pictures. So `--selftest` runs one tile
 of the batched stepper against `demo.step` for 200 steps (max difference `1.4e-15`) and
@@ -282,17 +288,44 @@ nothing between them: below `k≈0.0623` the seed fills the grid (at the reporte
 `k=0.0609`, fill reaches `0.976`), above it structures stay localised but never stop
 growing (smallest second-half growth `+0.22`).
 
-So resolution is eliminated, and that is all that is eliminated. **Two explanations remain
-untested against each other:** the published coordinates may not transfer into this
-parameterisation, or the asymmetric blob may simply be the wrong seed — stage 2 showed
-symmetric seeds *cannot* travel, which is not evidence that this one *can*. Separating them
-needs a seeding experiment, not a finer sweep. An earlier version of this README called the
-u-skate coordinates "tested and not reproduced"; that overstated the evidence and has been
-corrected here.
+### What the audit found
 
-Full write-up with all figures, including what stage 5 got wrong:
-[`documentation.html`](documentation.html). Method and acceptance criteria:
-[`PLAN.html`](PLAN.html).
+Resolution was eliminated, and that was all that had been eliminated — until the primary
+source was finally read, on 2026-08-13. It had the answer, and so did a 2.5 KB file:
+
+- R. P. Munafo, *Stable localized moving patterns in the 2-D Gray-Scott model*,
+  [arXiv:1501.01990](https://arxiv.org/abs/1501.01990).
+- `Patterns/GrayScott1984/U-Skate/Munafo_glider.vti` in
+  [GollyGang/ready](https://github.com/GollyGang/ready) — the glider as a runnable file.
+
+**A glider run is fourteen decisions. Eight already matched** — including every one this
+project spent compute on. Four differ, two were never tested:
+
+| | |
+|---|---|
+| matched (8) | equation, `dt=1`, stencil family, `f`, `k`, `Dv/Du=0.5`, periodic boundary, grid |
+| **wrong (4)** | `Du` **0.30 vs 0.164**; background **(1,0) dead vs (0.5,0.3) live**; seed polarity **inverted**; seed shape |
+| untested (2) | float32 vs float64; the `[0,1]` clip |
+
+Three of the four wrong knobs are one object — the initial condition, wrong in every
+respect at once. This project drops a `v=1` blob into an *empty* grid; the working recipe
+sets `v=0` in three small rectangles carved out of an *occupied* one. Those are different
+basins of attraction, and no `(f, k)` sweep crosses between basins.
+
+**The coordinates were never the problem.** Munafo's Table 1 gives the stable band as
+`0.0608833 ≤ k ≤ 0.0609829` at `f=0.06`, and shows it moves by under `6e-6` across three
+grid refinements. Stage 5's `5e-5` comb was correctly sized, and **2 of its 162 tiles sat
+inside that band**. The run stood on the target for 72.9 minutes with two other knobs
+wrong. Earlier versions of this README called the u-skate coordinates "tested and not
+reproduced", then "untested"; both are withdrawn — they transfer exactly.
+
+The root cause is a single line: the primary source was never opened. One fetch was
+available at any point across five stages and 162.5 minutes of compute.
+
+Full write-up, the knob-by-knob table, the six-part retrospective and the corrective plan:
+[`documentation.html`](documentation.html), sections *The published answer*, *Knob-by-knob*,
+*What the strategy missed*, *Corrective actions*. Method and acceptance criteria:
+[`PLAN.html`](PLAN.html). Next steps: [`HANDOFF.md`](HANDOFF.md).
 
 ## Files
 
